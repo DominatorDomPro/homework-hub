@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Homework Command Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen pb-16">
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">📚</span>
+                    <h1 class="text-xl font-bold tracking-tight text-white">Homework Command Center</h1>
+                </div>
+                <p class="text-xs text-slate-400 mt-0.5">Loaded from <code>homework_list.md</code> • Last refreshed: November 11, 2026 at 03:48 PM</p>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <div class="bg-slate-800 p-1 rounded-lg flex items-center text-sm font-medium">
+                    <button id="tab-checklist" onclick="switchView('checklist')" class="px-3 py-1.5 rounded-md bg-indigo-600 text-white shadow transition">
+                        ✓ Checklist
+                    </button>
+                    <button id="tab-calendar" onclick="switchView('calendar')" class="px-3 py-1.5 rounded-md text-slate-400 hover:text-white transition">
+                        📅 Calendar
+                    </button>
+                </div>
+                <button onclick="toggleModal(true)" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition shadow">
+                    + Add Task
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 mt-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="md:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Completion Progress</span>
+                    <span id="progress-text" class="text-sm font-bold text-indigo-400">0 / 0 Completed (0%)</span>
+                </div>
+                <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden">
+                    <div id="progress-bar" class="bg-gradient-to-r from-indigo-500 to-emerald-500 h-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Remaining</p>
+                    <p id="stat-remaining" class="text-2xl font-bold text-white mt-1">0</p>
+                </div>
+                <span class="text-2xl bg-indigo-500/10 border border-indigo-500/20 p-2.5 rounded-lg">⏳</span>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Due Within 48h</p>
+                    <p id="stat-soon" class="text-2xl font-bold text-amber-400 mt-1">0</p>
+                </div>
+                <span class="text-2xl bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-lg">🔥</span>
+            </div>
+        </div>
+
+        <div class="flex items-center justify-between flex-wrap gap-3 mb-6">
+            <div id="course-filters" class="flex items-center gap-2 flex-wrap"></div>
+            <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
+                <input type="checkbox" id="hide-completed" onchange="renderAll()" class="rounded bg-slate-800 border-slate-700 text-indigo-600 focus:ring-0">
+                Hide completed tasks
+            </label>
+        </div>
+
+        <section id="view-checklist" class="space-y-3"></section>
+
+        <section id="view-calendar" class="hidden">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+                    <h2 id="cal-month-title" class="text-lg font-bold text-white"></h2>
+                    <div class="flex items-center gap-2">
+                        <button onclick="changeMonth(-1)" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm">← Prev</button>
+                        <button onclick="resetToToday()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm text-indigo-400 font-medium">Today</button>
+                        <button onclick="changeMonth(1)" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm">Next →</button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-7 border-b border-slate-800 bg-slate-900/50 text-center text-xs font-semibold uppercase tracking-wider text-slate-400 py-2.5">
+                    <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+                </div>
+                <div id="calendar-grid" class="grid grid-cols-7 divide-x divide-y divide-slate-800 bg-slate-950"></div>
+            </div>
+        </section>
+    </main>
+
+    <div id="task-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl">
+            <h3 class="text-lg font-bold text-white mb-4">Add Custom Assignment</h3>
+            <div class="space-y-3">
+                <div>
+                    <label class="text-xs text-slate-400 block mb-1">Course Name</label>
+                    <input id="custom-course" type="text" placeholder="e.g. Foundations of Ethics" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 block mb-1">Assignment Title</label>
+                    <input id="custom-title" type="text" placeholder="e.g. Read Scotus pp. 252-282" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 block mb-1">Due Date</label>
+                    <input id="custom-date" type="date" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 block mb-1">Details / Notes</label>
+                    <input id="custom-details" type="text" placeholder="e.g. Bring notes to class" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button onclick="toggleModal(false)" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-sm">Cancel</button>
+                <button onclick="addCustomTask()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium">Save Task</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const BOT_ASSIGNMENTS = [{"course": "Philosophy of God", "title": "Davies_Concepts of God.pdf", "due_date": "Wednesday, November 11, 2026", "iso_date": "2026-11-11", "status_or_details": "Readings / Module for Wednesday 11/11"}, {"course": "Philosophy of God", "title": "Discussion Question 10", "due_date": "Wednesday, November 11, 2026", "iso_date": "2026-11-11", "status_or_details": "Complete Discussion Question 10"}, {"course": "Trinity and Christology", "title": "POPE BENEDICT XVI, JESUS OF NAZARETH, CH 2 AND REREAD LUKE 1-4; CCC 484-487", "due_date": "Wednesday, November 11, 2026", "iso_date": "2026-11-11", "status_or_details": "Reading to finish before class"}, {"course": "Foundations of Ethics", "title": "John Duns Scotus, Will and Morality, 155\u2013191", "due_date": "Wednesday, November 11, 2026", "iso_date": "2026-11-11", "status_or_details": "Readings/Topic Covered for Week 12"}, {"course": "Elementary Spanish II", "title": "8.2 Double object pronouns (ws)", "due_date": "Wednesday, November 11, 2026", "iso_date": "2026-11-11", "status_or_details": "Prepare for class (Lecci\u00f3n ocho)"}, {"course": "Trinity and Christology", "title": "Journal for Class 35", "due_date": "Thursday, November 12, 2026, 11:59 PM", "iso_date": "2026-11-12", "status_or_details": "Submit Journal On Reading On Canvas Before Class (10 pts)"}, {"course": "Christian Moral Principles", "title": "Respect Marriage II (6th and 9th): Thou Shall Not Commit Adultery: Natural Law Basis of Catholic Sexual Ethics: Contraception & Purity of Heart", "due_date": "Thursday, November 12, 2026", "iso_date": "2026-11-12", "status_or_details": "CCC, 2331\u20132400; Donald Asci article; Mt 5:27\u201332; Mk 10:1\u201312; CCC, 2514\u201333"}, {"course": "Foundations of Ethics", "title": "John Duns Scotus, Will and Morality, 191\u2013222", "due_date": "Thursday, November 12, 2026", "iso_date": "2026-11-12", "status_or_details": "Readings/Topic Covered for Week 12"}, {"course": "Trinity and Christology", "title": "POPE BENEDICT XVI, JESUS OF NAZARETH, CHAPTER 3; CCC 488-511", "due_date": "Friday, November 13, 2026", "iso_date": "2026-11-13", "status_or_details": "Reading to finish before class"}, {"course": "Elementary Spanish II", "title": "8.3 Comparisons", "due_date": "Friday, November 13, 2026", "iso_date": "2026-11-13", "status_or_details": "Prepare for class (Lecci\u00f3n ocho)"}, {"course": "Christian Moral Principles", "title": "THE-115 CCC Assessment Exam 2", "due_date": "Saturday, November 14, 2026, 11:59 PM", "iso_date": "2026-11-14", "status_or_details": "Canvas Quiz (50 pts)"}, {"course": "Trinity and Christology", "title": "Journal for Class 36", "due_date": "Sunday, November 15, 2026, 11:59 PM", "iso_date": "2026-11-15", "status_or_details": "Submit Journal On Reading On Canvas Before Class (10 pts)"}, {"course": "Philosophy of God", "title": "Davies_Simplicity.pdf", "due_date": "Monday, November 16, 2026", "iso_date": "2026-11-16", "status_or_details": "Readings / Module for Monday 11/16"}, {"course": "Trinity and Christology", "title": "FINDING IN THE TEMPLE", "due_date": "POPE BENEDICT XVI, JESUS OF NAZARETH, CHAPTER 4 EPILOGUE; CCC 512-534", "iso_date": "2026-11-11", "status_or_details": "Monday, November 16, 2026"}, {"course": "Elementary Spanish II", "title": "8.4 Superlatives", "due_date": "Monday, November 16, 2026", "iso_date": "2026-11-16", "status_or_details": "Prepare for class (Lecci\u00f3n ocho)"}, {"course": "Trinity and Christology", "title": "Journal for Class 37", "due_date": "Tuesday, November 17, 2026, 11:59 PM", "iso_date": "2026-11-17", "status_or_details": "Submit Journal On Reading On Canvas Before Class (10 pts)"}, {"course": "Philosophy of God", "title": "Mullins_Classical Theism.pdf", "due_date": "Wednesday, November 18, 2026", "iso_date": "2026-11-18", "status_or_details": "Readings / Module for Wednesday 11/18"}, {"course": "Christian Moral Principles", "title": "Respect Marriage III (6th and 9th): Thou Shall Not Commit Adultery: Homosexuality", "due_date": "Wednesday, November 18, 2026", "iso_date": "2026-11-18", "status_or_details": "CDF Considerations (2003); Robert Barron video"}, {"course": "Trinity and Christology", "title": "Christ\u2019s Death", "due_date": "Shorter Summa Ch. 227-230", "iso_date": "2026-11-11", "status_or_details": "Wednesday, November 18, 2026"}, {"course": "Elementary Spanish II", "title": "Lectura: La feria del ma\u00edz", "due_date": "Wednesday, November 18, 2026", "iso_date": "2026-11-18", "status_or_details": "Prepare for class (Lecci\u00f3n ocho)"}, {"course": "Foundations of Ethics", "title": "Interpretive Philosophical Essay 2", "due_date": "Thursday, November 19, 2026, 8:00 AM", "iso_date": "2026-11-19", "status_or_details": "Interpretive Philosophical Essay # 2 Due (12.5 pts)"}, {"course": "Trinity and Christology", "title": "Journal for Class 38", "due_date": "Thursday, November 19, 2026, 11:59 PM", "iso_date": "2026-11-19", "status_or_details": "Submit Journal On Reading On Canvas Before Class (10 pts)"}, {"course": "Christian Moral Principles", "title": "Respect Marriage IV (6th and 9th): Thou Shall Not Commit Adultery: New Reproductive Technologies", "due_date": "Thursday, November 19, 2026", "iso_date": "2026-11-19", "status_or_details": "William May, \u201cGenerating Human Life Through New Reproductive Technologies\u201d; Complete Catechism Assessment"}, {"course": "Foundations of Ethics", "title": "John Duns Scotus, Will and Morality, 283\u2013314", "due_date": "Thursday, November 19, 2026", "iso_date": "2026-11-19", "status_or_details": "Readings/Topic Covered for Week 13"}, {"course": "Philosophy of God", "title": "Feser_Classical Theism.pdf", "due_date": "Friday, November 20, 2026", "iso_date": "2026-11-20", "status_or_details": "Readings / Module for Friday 11/20"}, {"course": "Philosophy of God", "title": "Discussion Question 11", "due_date": "Friday, November 20, 2026", "iso_date": "2026-11-20", "status_or_details": "Complete Discussion Question 11"}, {"course": "Trinity and Christology", "title": "Christ\u2019s Sufferings", "due_date": "Shorter Summa Ch. 231-233", "iso_date": "2026-11-11", "status_or_details": "Friday, November 20, 2026"}, {"course": "Elementary Spanish II", "title": "Escritura L8A in class \u2013 handwritten neatly", "due_date": "Friday, November 20, 2026", "iso_date": "2026-11-20", "status_or_details": "Escritura class activity"}, {"course": "Philosophy of God", "title": "Leftow on Aquinas on Omnipotence.pdf", "due_date": "Monday, November 23, 2026", "iso_date": "2026-11-23", "status_or_details": "Readings / Module for Monday 11/23"}, {"course": "Philosophy of God", "title": "Discussion Question 12", "due_date": "Monday, November 23, 2026", "iso_date": "2026-11-23", "status_or_details": "Complete Discussion Question 12"}, {"course": "Trinity and Christology", "title": "Christ\u2019s Burial/Descent to Hell and his Rewards", "due_date": "Shorter Summa Ch. 234-235, Summa theologiae, III.Q.49.article 6", "iso_date": "2026-11-11", "status_or_details": "Monday, November 23, 2026"}, {"course": "Elementary Spanish II", "title": "Contextos + Cultura: Frutos y verduras de Am\u00e9rica", "due_date": "Monday, November 23, 2026", "iso_date": "2026-11-23", "status_or_details": "Prepare for class (Lecci\u00f3n ocho)"}];
+
+        let completedIds = JSON.parse(localStorage.getItem('hw_completed_ids') || '{}');
+        let customTasks = JSON.parse(localStorage.getItem('hw_custom_tasks') || '[]');
+        let activeCourse = 'ALL';
+        let currentView = 'checklist';
+
+        const today = new Date();
+        let calYear = today.getFullYear();
+        let calMonth = today.getMonth();
+
+        const COURSE_COLORS = [
+            'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
+            'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+            'bg-amber-500/15 text-amber-300 border-amber-500/30',
+            'bg-rose-500/15 text-rose-300 border-rose-500/30',
+            'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
+            'bg-purple-500/15 text-purple-300 border-purple-500/30'
+        ];
+        const courseColorMap = {};
+
+        function getCourseStyle(courseName) {
+            if (!courseColorMap[courseName]) {
+                const idx = Object.keys(courseColorMap).length % COURSE_COLORS.length;
+                courseColorMap[courseName] = COURSE_COLORS[idx];
+            }
+            return courseColorMap[courseName];
+        }
+
+        function getTaskId(item) {
+            return encodeURIComponent(item.course + '__' + item.title + '__' + item.iso_date);
+        }
+
+        function getAllAssignments() {
+            return [...BOT_ASSIGNMENTS, ...customTasks].sort((a, b) => (a.iso_date || '9999').localeCompare(b.iso_date || '9999'));
+        }
+
+        function toggleComplete(taskId) {
+            if (completedIds[taskId]) {
+                delete completedIds[taskId];
+            } else {
+                completedIds[taskId] = true;
+            }
+            localStorage.setItem('hw_completed_ids', JSON.stringify(completedIds));
+            renderAll();
+        }
+
+        function deleteCustomTask(index) {
+            customTasks.splice(index, 1);
+            localStorage.setItem('hw_custom_tasks', JSON.stringify(customTasks));
+            renderAll();
+        }
+
+        function switchView(view) {
+            currentView = view;
+            document.getElementById('view-checklist').classList.toggle('hidden', view !== 'checklist');
+            document.getElementById('view-calendar').classList.toggle('hidden', view !== 'calendar');
+            document.getElementById('tab-checklist').className = view === 'checklist'
+                ? 'px-3 py-1.5 rounded-md bg-indigo-600 text-white shadow transition'
+                : 'px-3 py-1.5 rounded-md text-slate-400 hover:text-white transition';
+            document.getElementById('tab-calendar').className = view === 'calendar'
+                ? 'px-3 py-1.5 rounded-md bg-indigo-600 text-white shadow transition'
+                : 'px-3 py-1.5 rounded-md text-slate-400 hover:text-white transition';
+            renderAll();
+        }
+
+        function selectCourse(course) {
+            activeCourse = course;
+            renderAll();
+        }
+
+        function renderFilters(allItems) {
+            const courses = ['ALL', ...new Set(allItems.map(i => i.course))];
+            const container = document.getElementById('course-filters');
+            container.innerHTML = '';
+            courses.forEach(c => {
+                const active = c === activeCourse;
+                const btn = document.createElement('button');
+                btn.textContent = c;
+                btn.className = 'px-3 py-1 rounded-full text-xs font-medium border transition ' +
+                    (active ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white');
+                btn.onclick = () => selectCourse(c);
+                container.appendChild(btn);
+            });
+        }
+
+        function renderStats(allItems) {
+            const total = allItems.length;
+            const doneCount = allItems.filter(i => completedIds[getTaskId(i)]).length;
+            const pct = total ? Math.round((doneCount / total) * 100) : 0;
+
+            document.getElementById('progress-text').textContent = `${doneCount} / ${total} Completed (${pct}%)`;
+            document.getElementById('progress-bar').style.width = `${pct}%`;
+            document.getElementById('stat-remaining').textContent = total - doneCount;
+
+            const now = new Date();
+            now.setHours(0,0,0,0);
+            const twoDays = new Date(now.getTime() + 2 * 86400000);
+            const soonCount = allItems.filter(i => {
+                if (completedIds[getTaskId(i)] || !i.iso_date) return false;
+                const d = new Date(i.iso_date + 'T00:00:00');
+                return d >= now && d <= twoDays;
+            }).length;
+            document.getElementById('stat-soon').textContent = soonCount;
+        }
+
+        function renderChecklist(items) {
+            const container = document.getElementById('view-checklist');
+            if (!items.length) {
+                container.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-xl p-10 text-center text-slate-400">🎉 No assignments match this filter!</div>`;
+                return;
+            }
+
+            container.innerHTML = items.map(item => {
+                const id = getTaskId(item);
+                const isDone = !!completedIds[id];
+                const badgeStyle = getCourseStyle(item.course);
+                const customIdx = customTasks.indexOf(item);
+
+                return `
+                <div class="bg-slate-900 border ${isDone ? 'border-slate-800/50 opacity-60' : 'border-slate-800 hover:border-slate-700'} rounded-xl p-4 flex items-start gap-4 transition">
+                    <input type="checkbox" ${isDone ? 'checked' : ''} onchange="toggleComplete('${id}')"
+                        class="mt-1 h-5 w-5 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-0 cursor-pointer">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center flex-wrap gap-2 mb-1">
+                            <span class="px-2.5 py-0.5 rounded-full text-xs font-medium border ${badgeStyle}">${item.course}</span>
+                            <span class="text-xs font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">📅 ${item.due_date}</span>
+                        </div>
+                        <h3 class="text-base font-semibold ${isDone ? 'line-through text-slate-500' : 'text-white'}">${item.title}</h3>
+                        <p class="text-xs text-slate-400 mt-1">${item.status_or_details || ''}</p>
+                    </div>
+                    ${customIdx > -1 ? `<button onclick="deleteCustomTask(${customIdx})" class="text-xs text-slate-500 hover:text-rose-400">✕</button>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        function renderCalendar(items) {
+            const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+            document.getElementById('cal-month-title').textContent = `${monthNames[calMonth]} ${calYear}`;
+
+            const firstDay = new Date(calYear, calMonth, 1).getDay();
+            const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+            const todayIso = new Date().toISOString().slice(0, 10);
+
+            const grid = document.getElementById('calendar-grid');
+            let cells = '';
+
+            for (let i = 0; i < firstDay; i++) {
+                cells += `<div class="min-h-[120px] bg-slate-950/40 p-2"></div>`;
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const iso = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const dayTasks = items.filter(i => i.iso_date === iso);
+                const isToday = iso === todayIso;
+
+                const tasksHtml = dayTasks.map(t => {
+                    const id = getTaskId(t);
+                    const isDone = !!completedIds[id];
+                    const badgeStyle = getCourseStyle(t.course);
+                    return `
+                    <div onclick="toggleComplete('${id}')" title="${t.course}: ${t.title} (${t.status_or_details})"
+                        class="text-[11px] leading-tight p-1.5 rounded border cursor-pointer transition ${badgeStyle} ${isDone ? 'line-through opacity-40' : 'hover:brightness-125'}">
+                        <div class="font-bold truncate">${t.course}</div>
+                        <div class="truncate">${t.title}</div>
+                    </div>`;
+                }).join('');
+
+                cells += `
+                <div class="min-h-[120px] p-2 flex flex-col gap-1.5 ${isToday ? 'bg-indigo-950/20' : 'bg-slate-900/60'}">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold ${isToday ? 'bg-indigo-600 text-white px-2 py-0.5 rounded-full' : 'text-slate-400'}">${day}</span>
+                        ${dayTasks.length ? `<span class="text-[10px] text-slate-500">${dayTasks.length} due</span>` : ''}
+                    </div>
+                    <div class="space-y-1 overflow-y-auto max-h-[95px] custom-scroll">${tasksHtml}</div>
+                </div>`;
+            }
+
+            grid.innerHTML = cells;
+        }
+
+        function changeMonth(delta) {
+            calMonth += delta;
+            if (calMonth < 0) { calMonth = 11; calYear--; }
+            if (calMonth > 11) { calMonth = 0; calYear++; }
+            renderAll();
+        }
+
+        function resetToToday() {
+            const now = new Date();
+            calYear = now.getFullYear();
+            calMonth = now.getMonth();
+            renderAll();
+        }
+
+        function toggleModal(show) {
+            const modal = document.getElementById('task-modal');
+            modal.classList.toggle('hidden', !show);
+            modal.classList.toggle('flex', show);
+        }
+
+        function addCustomTask() {
+            const course = document.getElementById('custom-course').value.trim() || 'Personal';
+            const title = document.getElementById('custom-title').value.trim();
+            const iso_date = document.getElementById('custom-date').value;
+            const status_or_details = document.getElementById('custom-details').value.trim();
+            if (!title) return;
+
+            customTasks.push({
+                course,
+                title,
+                iso_date: iso_date || new Date().toISOString().slice(0, 10),
+                due_date: iso_date || 'Custom Date',
+                status_or_details
+            });
+            localStorage.setItem('hw_custom_tasks', JSON.stringify(customTasks));
+            toggleModal(false);
+            renderAll();
+        }
+
+        function renderAll() {
+            const allItems = getAllAssignments();
+            renderFilters(allItems);
+            renderStats(allItems);
+
+            const hideDone = document.getElementById('hide-completed').checked;
+            const filtered = allItems.filter(item => {
+                if (activeCourse !== 'ALL' && item.course !== activeCourse) return false;
+                if (hideDone && completedIds[getTaskId(item)]) return false;
+                return true;
+            });
+
+            renderChecklist(filtered);
+            renderCalendar(filtered);
+        }
+
+        renderAll();
+    </script>
+</body>
+</html>

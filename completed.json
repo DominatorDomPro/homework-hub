@@ -60,10 +60,16 @@
       "timeMode": "default",
       "customTime": "22:00",
       "skipExamsEssays": true
+    },
+    "CAT 120": {
+      "shiftDays": 0,
+      "timeMode": "default",
+      "customTime": "22:00",
+      "skipExamsEssays": true
     }
   },
   "globalDefaultTime": "00:00",
-  "themePreference": "auto",
+  "themePreference": "christmas",
   "customTasks": [
     {
       "course": "Philosophy of God",
@@ -71,6 +77,17 @@
       "iso_date": "2026-11-13",
       "due_date": "2026-11-13",
       "status_or_details": ""
+    },
+    {
+      "course": "CAT 120",
+      "title": "Read Christifudelis Laici Chapter 1",
+      "iso_date": "2026-11-09",
+      "_orig_iso_date": "2026-11-09",
+      "time_24": "22:00",
+      "_orig_time_24": "22:00",
+      "due_date": "2026-11-09",
+      "status_or_details": "",
+      "_id": "CAT%20120__readchristifudelislaicichapter1__2026-11-09"
     }
   ]
 }

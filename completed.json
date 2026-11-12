@@ -36,17 +36,17 @@
     }
   },
   "courseRules": {
-    "Elementary Spanish II": {
-      "shiftDays": 0,
-      "timeMode": "force",
-      "customTime": "22:00",
-      "skipExamsEssays": false
-    },
     "Christian Moral Principles": {
       "shiftDays": 0,
       "timeMode": "force",
       "customTime": "10:00",
       "skipExamsEssays": true
+    },
+    "Elementary Spanish II": {
+      "shiftDays": 0,
+      "timeMode": "force",
+      "customTime": "22:00",
+      "skipExamsEssays": false
     },
     "Foundations of Ethics": {
       "shiftDays": -1,
@@ -74,12 +74,12 @@
     }
   },
   "courseColors": {
-    "Elementary Spanish II": "indigo",
+    "Elementary Spanish II": "orange",
     "Trinity and Christology": "rose",
-    "Philosophy of God": "cyan",
-    "Christian Moral Principles": "emerald",
-    "Foundations of Ethics": "amber",
-    "CAT 120": "purple"
+    "Philosophy of God": "emerald",
+    "Christian Moral Principles": "rose",
+    "Foundations of Ethics": "emerald",
+    "CAT 120": "amber"
   },
   "cardOpacity": 15,
   "globalDefaultTime": "00:00",

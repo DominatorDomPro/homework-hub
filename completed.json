@@ -63,5 +63,6 @@
     }
   },
   "globalDefaultTime": "00:00",
+  "themePreference": "winter",
   "customTasks": []
 }

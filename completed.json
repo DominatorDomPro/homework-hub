@@ -1,5 +1,5 @@
 {
-  "_version": 3,
+  "_version": 4,
   "completed": {
     "Philosophy%20of%20God__Davies_Concepts%20of%20God.pdf__2026-11-11": true,
     "Philosophy%20of%20God__Discussion%20Question%2010__2026-11-11": true,
@@ -73,8 +73,17 @@
       "skipExamsEssays": true
     }
   },
+  "courseColors": {
+    "Elementary Spanish II": "indigo",
+    "Trinity and Christology": "rose",
+    "Philosophy of God": "cyan",
+    "Christian Moral Principles": "emerald",
+    "Foundations of Ethics": "amber",
+    "CAT 120": "purple"
+  },
+  "cardOpacity": 43,
   "globalDefaultTime": "00:00",
-  "themePreference": "summer",
+  "themePreference": "christmas",
   "customTasks": [
     {
       "course": "Philosophy of God",

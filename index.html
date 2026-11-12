@@ -21,11 +21,9 @@
             background-attachment: fixed;
             transition: background 0.8s ease;
         }
-        .glass-card {
+       .glass-card {
             background: rgba(var(--card-rgb), var(--card-opacity));
             border-color: var(--card-border);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
         }
         .theme-accent-bg { background-color: var(--accent); }
         .theme-accent-bg:hover { background-color: var(--accent-hover); }
@@ -264,7 +262,7 @@
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div class="flex items-center gap-2 flex-wrap">
                         <span id="theme-badge" onclick="openSettingsPage(true)" class="cursor-pointer text-[11px] font-semibold px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 text-white border border-white/15 transition"></span>
-                        <p class="text-xs text-slate-200/80">Refreshed: November 12, 2026 at 04:16 PM • <span id="sync-status" class="text-slate-300">Local mode</span></p>
+                        <p class="text-xs text-slate-200/80">Refreshed: November 12, 2026 at 04:28 PM • <span id="sync-status" class="text-slate-300">Local mode</span></p>
                     </div>
                     <div class="flex items-center gap-2">
                         <button onclick="pullRemoteState()" class="px-2.5 py-1 rounded-lg glass-card hover:bg-white/10 border text-slate-100 text-xs font-medium transition">🔄 Sync Now</button>
@@ -332,15 +330,22 @@
             </div>
 
             <!-- Section 1: Task Box Opacity Slider -->
-            <div class="bg-slate-950/65 border border-white/10 rounded-xl p-4 space-y-2">
+            <div id="opacity-slider-section" class="bg-slate-950/85 border border-white/15 rounded-xl p-4 space-y-2 transition-all duration-150">
                 <div class="flex items-center justify-between">
                     <div>
                         <div class="text-sm font-bold text-white">🪟 Task Box Opacity</div>
-                        <div class="text-xs text-slate-300">Slide lower to see more of the animated background through your task cards</div>
+                        <div class="text-xs text-slate-300">Hold & slide to hide settings and preview your task boxes live</div>
                     </div>
                     <span id="opacity-value-label" class="text-sm font-bold text-amber-300">68%</span>
                 </div>
-                <input id="card-opacity-slider" type="range" min="15" max="95" value="68" oninput="updateCardOpacity(this.value)"
+                <input id="card-opacity-slider" type="range" min="15" max="95" value="68"
+                    onmousedown="setOpacityPreviewMode(true)"
+                    onmouseup="setOpacityPreviewMode(false)"
+                    onmouseleave="setOpacityPreviewMode(false)"
+                    ontouchstart="setOpacityPreviewMode(true)"
+                    ontouchend="setOpacityPreviewMode(false)"
+                    oninput="updateCardOpacity(this.value, false)"
+                    onchange="updateCardOpacity(this.value, true); setOpacityPreviewMode(false)"
                     class="w-full accent-indigo-500 cursor-pointer h-2 bg-slate-800 rounded-lg">
             </div>
 
@@ -1362,6 +1367,29 @@
             applyTrayState();
         }
 
+      function setOpacityPreviewMode(isSliding) {
+            const page = document.getElementById('settings-page');
+            if (!page) return;
+            const innerCard = page.firstElementChild;
+            const sliderBox = document.getElementById('opacity-slider-section');
+
+            // Hide backdrop blur & dark overlay while dragging slider
+            page.classList.toggle('bg-slate-950/55', !isSliding);
+            page.classList.toggle('backdrop-blur-md', !isSliding);
+
+            if (innerCard) {
+                innerCard.classList.toggle('bg-slate-900/75', !isSliding);
+                innerCard.classList.toggle('border', !isSliding);
+                innerCard.classList.toggle('shadow-2xl', !isSliding);
+                Array.from(innerCard.children).forEach(child => {
+                    if (child !== sliderBox) {
+                        child.style.opacity = isSliding ? '0' : '1';
+                        child.style.pointerEvents = isSliding ? 'none' : '';
+                    }
+                });
+            }
+        }
+
         function updateCardOpacity(val, syncAfter = false) {
             cardOpacity = parseInt(val, 10) || 68;
             document.documentElement.style.setProperty('--card-opacity', (cardOpacity / 100).toFixed(2));
@@ -1441,14 +1469,14 @@
         // CUSTOM SUBJECT COLOR PALETTES & SCHEDULE LOGIC
         // =====================================================================
         const COLOR_PALETTES = {
-            indigo:  { label: 'Indigo',  cls: 'bg-indigo-500/25 text-indigo-200 border-indigo-400/40' },
-            emerald: { label: 'Emerald', cls: 'bg-emerald-500/25 text-emerald-200 border-emerald-400/40' },
-            amber:   { label: 'Amber',   cls: 'bg-amber-500/25 text-amber-200 border-amber-400/40' },
-            rose:    { label: 'Rose',    cls: 'bg-rose-500/25 text-rose-200 border-rose-400/40' },
-            cyan:    { label: 'Cyan',    cls: 'bg-cyan-500/25 text-cyan-200 border-cyan-400/40' },
-            purple:  { label: 'Purple',  cls: 'bg-purple-500/25 text-purple-200 border-purple-400/40' },
-            pink:    { label: 'Pink',    cls: 'bg-pink-500/25 text-pink-200 border-pink-400/40' },
-            orange:  { label: 'Orange',  cls: 'bg-orange-500/25 text-orange-200 border-orange-400/40' }
+            indigo:  { label: 'Indigo',  hex: '#6366f1', cls: 'bg-indigo-500/25 text-indigo-200 border-indigo-400/40' },
+            emerald: { label: 'Emerald', hex: '#10b981', cls: 'bg-emerald-500/25 text-emerald-200 border-emerald-400/40' },
+            amber:   { label: 'Amber',   hex: '#f59e0b', cls: 'bg-amber-500/25 text-amber-200 border-amber-400/40' },
+            rose:    { label: 'Rose',    hex: '#f43f5e', cls: 'bg-rose-500/25 text-rose-200 border-rose-400/40' },
+            cyan:    { label: 'Cyan',    hex: '#06b6d4', cls: 'bg-cyan-500/25 text-cyan-200 border-cyan-400/40' },
+            purple:  { label: 'Purple',  hex: '#a855f7', cls: 'bg-purple-500/25 text-purple-200 border-purple-400/40' },
+            pink:    { label: 'Pink',    hex: '#ec4899', cls: 'bg-pink-500/25 text-pink-200 border-pink-400/40' },
+            orange:  { label: 'Orange',  hex: '#f97316', cls: 'bg-orange-500/25 text-orange-200 border-orange-400/40' }
         };
         const PALETTE_KEYS = Object.keys(COLOR_PALETTES);
 
@@ -1571,6 +1599,24 @@
             return Array.from(set);
         }
 
+        function previewCourseColorChange(cardEl, newKey) {
+            const pal = COLOR_PALETTES[newKey] || COLOR_PALETTES.indigo;
+            const selectEl = cardEl.querySelector('.rule-color');
+            if (selectEl && selectEl.value !== newKey) selectEl.value = newKey;
+
+            const dotEl = cardEl.querySelector('.rule-color-dot');
+            if (dotEl) dotEl.style.backgroundColor = pal.hex;
+
+            const badgeEl = cardEl.querySelector('.course-preview-badge');
+            if (badgeEl) badgeEl.className = `course-preview-badge px-2.5 py-0.5 rounded-full text-xs font-medium border ${pal.cls}`;
+
+            cardEl.querySelectorAll('.swatch-dot').forEach(btn => {
+                const isMatch = btn.getAttribute('data-col') === newKey;
+                btn.style.transform = isMatch ? 'scale(1.25)' : 'scale(1)';
+                btn.style.outline = isMatch ? '2px solid white' : 'none';
+            });
+        }
+
         function populateCourseRulesAndColors() {
             document.getElementById('global-default-time-input').value = globalDefaultTime;
             const courses = getAllCourseNames();
@@ -1580,19 +1626,35 @@
                 const r = getRuleForCourse(c);
                 const colKey = getCourseColorKey(c);
                 const badgeStyle = getCourseStyle(c);
+                const currentHex = (COLOR_PALETTES[colKey] || COLOR_PALETTES.indigo).hex;
+
                 const colorOptions = PALETTE_KEYS.map(k =>
                     `<option value="${k}" ${k === colKey ? 'selected' : ''}>${COLOR_PALETTES[k].label}</option>`
                 ).join('');
 
+                const colorDotsRow = PALETTE_KEYS.map(k => {
+                    const active = k === colKey;
+                    return `<button type="button" data-col="${k}" title="${COLOR_PALETTES[k].label}"
+                        onclick="previewCourseColorChange(this.closest('[data-course]'), '${k}')"
+                        class="swatch-dot w-4 h-4 rounded-full border border-white/40 transition-transform"
+                        style="background-color: ${COLOR_PALETTES[k].hex}; transform: ${active ? 'scale(1.25)' : 'scale(1)'}; outline: ${active ? '2px solid white' : 'none'}; outline-offset: 1px;"></button>`;
+                }).join('');
+
                 return `
                 <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2.5" data-course="${encodeURIComponent(c)}">
                     <div class="flex items-center justify-between flex-wrap gap-2">
-                        <span class="px-2.5 py-0.5 rounded-full text-xs font-medium border ${badgeStyle}">${c}</span>
-                        <div class="flex items-center gap-2">
-                            <label class="text-[11px] text-slate-300">Subject Color:</label>
-                            <select class="rule-color bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white">
-                                ${colorOptions}
-                            </select>
+                        <span class="course-preview-badge px-2.5 py-0.5 rounded-full text-xs font-medium border ${badgeStyle}">${c}</span>
+                        <div class="flex items-center gap-2.5 flex-wrap">
+                            <div class="flex items-center gap-1.5 bg-slate-950/70 px-2.5 py-1 rounded-lg border border-white/10">
+                                ${colorDotsRow}
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="rule-color-dot w-3.5 h-3.5 rounded-full inline-block border border-white/50 shadow" style="background-color: ${currentHex}"></span>
+                                <select onchange="previewCourseColorChange(this.closest('[data-course]'), this.value)"
+                                    class="rule-color bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white">
+                                    ${colorOptions}
+                                </select>
+                            </div>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">

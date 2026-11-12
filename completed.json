@@ -83,7 +83,7 @@
   },
   "cardOpacity": 64,
   "globalDefaultTime": "00:00",
-  "themePreference": "halloween",
+  "themePreference": "auto",
   "customTasks": [
     {
       "course": "Philosophy of God",

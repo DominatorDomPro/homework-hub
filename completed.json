@@ -1,10 +1,20 @@
 {
-  "Philosophy%20of%20God__Davies_Concepts%20of%20God.pdf__2026-11-11": true,
-  "Philosophy%20of%20God__Discussion%20Question%2010__2026-11-11": true,
-  "Philosophy%20of%20God__daviesconceptsofgodpdfdiscussionquestion10__2026-11-11": true,
-  "Christian%20Moral%20Principles__respectmarriagei4thand6thhonorthyfatherandmotherhonorandthefamily__2026-11-10": true,
-  "Foundations%20of%20Ethics__johndunsscotuswillandmorality155191__2026-11-10": true,
-  "Philosophy%20of%20God__daviesconceptsofgodpdf__2026-11-11": true,
-  "Trinity%20and%20Christology__popebenedictxvijesusofnazareththeinfancynarrativeschapter2andrereadluke14ccc484487__2026-11-11": true,
-  "Foundations%20of%20Ethics__johndunsscotuswillandmorality191222__2026-11-12": true
+  "_version": 2,
+  "completed": {
+    "Philosophy%20of%20God__Davies_Concepts%20of%20God.pdf__2026-11-11": true,
+    "Philosophy%20of%20God__Discussion%20Question%2010__2026-11-11": true,
+    "Philosophy%20of%20God__daviesconceptsofgodpdfdiscussionquestion10__2026-11-11": true,
+    "Christian%20Moral%20Principles__respectmarriagei4thand6thhonorthyfatherandmotherhonorandthefamily__2026-11-10": true,
+    "Foundations%20of%20Ethics__johndunsscotuswillandmorality155191__2026-11-10": true,
+    "Philosophy%20of%20God__daviesconceptsofgodpdf__2026-11-11": true,
+    "Trinity%20and%20Christology__popebenedictxvijesusofnazareththeinfancynarrativeschapter2andrereadluke14ccc484487__2026-11-11": true,
+    "Foundations%20of%20Ethics__johndunsscotuswillandmorality191222__2026-11-12": true
+  },
+  "overrides": {
+    "Philosophy%20of%20God__weektwelvewednesday1111conceptsofgoddiscussionquestion10__2026-11-11": {
+      "iso_date": "2026-11-11",
+      "time_24": "12:00"
+    }
+  },
+  "customTasks": []
 }

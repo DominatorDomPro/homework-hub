@@ -6,57 +6,168 @@
     <title>Homework Command Center</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+        :root {
+            --bg-top: #0f172a;
+            --bg-bottom: #1e1b4b;
+            --card-bg: rgba(15, 23, 42, 0.78);
+            --card-border: rgba(148, 163, 184, 0.18);
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+            --accent-glow: rgba(99, 102, 241, 0.25);
+        }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
+            background-attachment: fixed;
+            transition: background 0.8s ease;
+        }
+        .glass-card {
+            background: var(--card-bg);
+            border-color: var(--card-border);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        .theme-accent-bg { background-color: var(--accent); }
+        .theme-accent-bg:hover { background-color: var(--accent-hover); }
         .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+
+        /* Cartoon & Scenery Animations */
+        @keyframes flameFlicker {
+            0%, 100% { transform: scaleY(1) scaleX(1) rotate(-1deg); opacity: 0.95; }
+            25% { transform: scaleY(1.12) scaleX(0.94) rotate(2deg); opacity: 1; }
+            50% { transform: scaleY(0.92) scaleX(1.06) rotate(-2deg); opacity: 0.88; }
+            75% { transform: scaleY(1.08) scaleX(0.96) rotate(1deg); opacity: 0.98; }
+        }
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.25; transform: scale(0.85); }
+            50% { opacity: 1; transform: scale(1.25); }
+        }
+        @keyframes snowballArcLeftToRight {
+            0% { transform: translate(0, 0) scale(0.8); opacity: 0; }
+            15% { opacity: 1; }
+            50% { transform: translate(95px, -48px) scale(1); opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translate(190px, 5px) scale(0.6); opacity: 0; }
+        }
+        @keyframes snowballArcRightToLeft {
+            0% { transform: translate(0, 0) scale(0.8); opacity: 0; }
+            15% { opacity: 1; }
+            50% { transform: translate(-95px, -52px) scale(1); opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translate(-190px, 5px) scale(0.6); opacity: 0; }
+        }
+        @keyframes throwArm {
+            0%, 100% { transform: rotate(0deg); }
+            30% { transform: rotate(-35deg); }
+            60% { transform: rotate(25deg); }
+        }
+        @keyframes sledSlide {
+            0% { transform: translate(0px, 0px); opacity: 0; }
+            10% { opacity: 1; }
+            85% { opacity: 1; }
+            100% { transform: translate(180px, 42px); opacity: 0; }
+        }
+        @keyframes bunnyHop {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            40% { transform: translateY(-22px) rotate(-8deg); }
+            60% { transform: translateY(-18px) rotate(6deg); }
+        }
+        @keyframes ghostFloat {
+            0%, 100% { transform: translateY(0px) translateX(0px); }
+            50% { transform: translateY(-18px) translateX(10px); }
+        }
+        @keyframes waveSlide {
+            0%, 100% { transform: translateX(0px); }
+            50% { transform: translateX(-25px); }
+        }
+        @keyframes boatBob {
+            0%, 100% { transform: translateY(0px) rotate(-2deg); }
+            50% { transform: translateY(-6px) rotate(3deg); }
+        }
+        @keyframes sunSpin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes smokeRise {
+            0% { transform: translateY(0) scale(0.6); opacity: 0.7; }
+            100% { transform: translateY(-55px) translateX(18px) scale(1.6); opacity: 0; }
+        }
+
+        .flame-main { animation: flameFlicker 0.45s infinite ease-in-out; transform-origin: bottom center; }
+        .flame-inner { animation: flameFlicker 0.32s infinite ease-in-out reverse; transform-origin: bottom center; }
+        .light-1 { animation: twinkle 1.6s infinite ease-in-out; }
+        .light-2 { animation: twinkle 1.6s infinite ease-in-out 0.5s; }
+        .light-3 { animation: twinkle 1.6s infinite ease-in-out 1.0s; }
+        .snowball-1 { animation: snowballArcLeftToRight 2.4s infinite ease-in-out; }
+        .snowball-2 { animation: snowballArcRightToLeft 2.4s infinite ease-in-out 1.2s; }
+        .kid-arm-1 { animation: throwArm 2.4s infinite ease-in-out; transform-origin: top center; }
+        .kid-arm-2 { animation: throwArm 2.4s infinite ease-in-out 1.2s; transform-origin: top center; }
+        .sledder { animation: sledSlide 5.5s infinite linear; }
+        .bunny-1 { animation: bunnyHop 1.8s infinite ease-in-out; }
+        .bunny-2 { animation: bunnyHop 2.1s infinite ease-in-out 0.7s; }
+        .ghost-bob { animation: ghostFloat 3.5s infinite ease-in-out; }
+        .ocean-wave { animation: waveSlide 4s infinite ease-in-out; }
+        .sailboat { animation: boatBob 3.2s infinite ease-in-out; transform-origin: bottom center; }
+        .sun-rays { animation: sunSpin 28s infinite linear; transform-origin: center; }
+        .chimney-smoke-1 { animation: smokeRise 3.6s infinite ease-out; }
+        .chimney-smoke-2 { animation: smokeRise 3.6s infinite ease-out 1.8s; }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen pb-16">
-    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30">
+<body class="text-slate-100 min-h-screen pb-36 relative overflow-x-hidden">
+    <!-- Animated Particle Canvas (Snow, Fireworks, Embers, Leaves, Petals, Bats) -->
+    <canvas id="theme-canvas" class="fixed inset-0 pointer-events-none z-0"></canvas>
+
+    <!-- Animated Bottom Cartoon / Seasonal Diorama -->
+    <div id="theme-scenery" class="fixed bottom-0 left-0 right-0 pointer-events-none z-0 overflow-hidden flex justify-center"></div>
+
+    <header class="border-b glass-card sticky top-0 z-30">
         <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
                 <div class="flex items-center gap-3">
-                    <span class="text-2xl">📚</span>
+                    <span id="theme-header-icon" class="text-2xl">📚</span>
                     <h1 class="text-xl font-bold tracking-tight text-white">Homework Command Center</h1>
+                    <span id="theme-badge" onclick="toggleThemeModal(true)" class="cursor-pointer text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-white/10 hover:bg-white/20 text-white border border-white/15 transition"></span>
                 </div>
-                <p class="text-xs text-slate-400 mt-0.5">Last refreshed: November 12, 2026 at 11:27 AM • <span id="sync-status" class="text-slate-500">Local mode</span></p>
+                <p class="text-xs text-slate-300/80 mt-0.5">Last refreshed: November 12, 2026 at 11:46 AM • <span id="sync-status" class="text-slate-400">Local mode</span></p>
             </div>
 
             <div class="flex items-center gap-2 flex-wrap">
-                <div class="bg-slate-800 p-1 rounded-lg flex items-center text-sm font-medium">
-                    <button id="tab-checklist" onclick="switchView('checklist')" class="px-3 py-1.5 rounded-md bg-indigo-600 text-white shadow transition">✓ Checklist</button>
-                    <button id="tab-calendar" onclick="switchView('calendar')" class="px-3 py-1.5 rounded-md text-slate-400 hover:text-white transition">📅 Calendar</button>
+                <div class="bg-slate-900/80 border border-white/10 p-1 rounded-lg flex items-center text-sm font-medium">
+                    <button id="tab-checklist" onclick="switchView('checklist')" class="px-3 py-1.5 rounded-md theme-accent-bg text-white shadow transition">✓ Checklist</button>
+                    <button id="tab-calendar" onclick="switchView('calendar')" class="px-3 py-1.5 rounded-md text-slate-300 hover:text-white transition">📅 Calendar</button>
                 </div>
-                <button onclick="pullRemoteState()" title="Pull latest changes from cloud" class="px-2.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm transition">🔄</button>
-                <button onclick="openRulesModal()" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm font-medium transition">⚙️ Course Rules</button>
-                <button onclick="toggleSyncModal(true)" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm font-medium transition">☁️ Cloud Sync</button>
+                <button onclick="pullRemoteState()" title="Pull latest changes from cloud" class="px-2.5 py-2 rounded-lg glass-card hover:bg-white/10 border text-slate-200 text-sm transition">🔄</button>
+                <button onclick="toggleThemeModal(true)" class="px-3 py-2 rounded-lg glass-card hover:bg-white/10 border text-slate-200 text-sm font-medium transition">🎨 Theme</button>
+                <button onclick="openRulesModal()" class="px-3 py-2 rounded-lg glass-card hover:bg-white/10 border text-slate-200 text-sm font-medium transition">⚙️ Course Rules</button>
+                <button onclick="toggleSyncModal(true)" class="px-3 py-2 rounded-lg glass-card hover:bg-white/10 border text-slate-200 text-sm font-medium transition">☁️ Cloud Sync</button>
                 <button onclick="toggleModal(true)" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition shadow">+ Add Task</button>
             </div>
         </div>
     </header>
 
-    <main class="max-w-6xl mx-auto px-4 sm:px-6 mt-6">
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 mt-6 relative z-10">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <div class="md:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+            <div class="md:col-span-2 glass-card border rounded-xl p-4 flex flex-col justify-between">
                 <div class="flex justify-between items-center mb-2">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Completion Progress</span>
-                    <span id="progress-text" class="text-sm font-bold text-indigo-400">0 / 0 Completed (0%)</span>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-300">Completion Progress</span>
+                    <span id="progress-text" class="text-sm font-bold text-white">0 / 0 Completed (0%)</span>
                 </div>
-                <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden">
-                    <div id="progress-bar" class="bg-gradient-to-r from-indigo-500 to-emerald-500 h-full transition-all duration-300" style="width: 0%"></div>
+                <div class="w-full bg-slate-800/80 h-3 rounded-full overflow-hidden">
+                    <div id="progress-bar" class="bg-gradient-to-r from-indigo-500 to-emerald-400 h-full transition-all duration-300" style="width: 0%"></div>
                 </div>
             </div>
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+            <div class="glass-card border rounded-xl p-4 flex items-center justify-between">
                 <div>
-                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Remaining</p>
+                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-300">Remaining</p>
                     <p id="stat-remaining" class="text-2xl font-bold text-white mt-1">0</p>
                 </div>
-                <span class="text-2xl bg-indigo-500/10 border border-indigo-500/20 p-2.5 rounded-lg">⏳</span>
+                <span class="text-2xl bg-white/5 border border-white/10 p-2.5 rounded-lg">⏳</span>
             </div>
-            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+            <div class="glass-card border rounded-xl p-4 flex items-center justify-between">
                 <div>
-                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Due Within 48h</p>
-                    <p id="stat-soon" class="text-2xl font-bold text-amber-400 mt-1">0</p>
+                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-300">Due Within 48h</p>
+                    <p id="stat-soon" class="text-2xl font-bold text-amber-300 mt-1">0</p>
                 </div>
                 <span class="text-2xl bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-lg">🔥</span>
             </div>
@@ -64,8 +175,8 @@
 
         <div class="flex items-center justify-between flex-wrap gap-3 mb-6">
             <div id="course-filters" class="flex items-center gap-2 flex-wrap"></div>
-            <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
-                <input type="checkbox" id="hide-completed" onchange="renderAll()" class="rounded bg-slate-800 border-slate-700 text-indigo-600 focus:ring-0">
+            <label class="flex items-center gap-2 text-xs text-slate-200 cursor-pointer select-none glass-card px-3 py-1.5 rounded-full border">
+                <input type="checkbox" id="hide-completed" onchange="renderAll()" class="rounded bg-slate-800 border-slate-600 text-indigo-600 focus:ring-0">
                 Hide completed tasks
             </label>
         </div>
@@ -73,22 +184,90 @@
         <section id="view-checklist" class="space-y-3"></section>
 
         <section id="view-calendar" class="hidden">
-            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
-                <div class="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+            <div class="glass-card border rounded-xl overflow-hidden shadow-lg">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-white/10">
                     <h2 id="cal-month-title" class="text-lg font-bold text-white"></h2>
                     <div class="flex items-center gap-2">
-                        <button onclick="changeMonth(-1)" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm">← Prev</button>
-                        <button onclick="resetToToday()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm text-indigo-400 font-medium">Today</button>
-                        <button onclick="changeMonth(1)" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm">Next →</button>
+                        <button onclick="changeMonth(-1)" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-sm">← Prev</button>
+                        <button onclick="resetToToday()" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-sm text-amber-300 font-medium">Today</button>
+                        <button onclick="changeMonth(1)" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-sm">Next →</button>
                     </div>
                 </div>
-                <div class="grid grid-cols-7 border-b border-slate-800 bg-slate-900/50 text-center text-xs font-semibold uppercase tracking-wider text-slate-400 py-2.5">
+                <div class="grid grid-cols-7 border-b border-white/10 bg-slate-900/60 text-center text-xs font-semibold uppercase tracking-wider text-slate-300 py-2.5">
                     <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
                 </div>
-                <div id="calendar-grid" class="grid grid-cols-7 divide-x divide-y divide-slate-800 bg-slate-950"></div>
+                <div id="calendar-grid" class="grid grid-cols-7 divide-x divide-y divide-white/10 bg-slate-950/60"></div>
             </div>
         </section>
     </main>
+
+    <!-- Modal 0: Theme Switcher -->
+    <div id="theme-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-lg w-full p-6 shadow-2xl">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-lg font-bold text-white">🎨 Seasonal & Holiday Themes</h3>
+                <button onclick="toggleThemeModal(false)" class="text-slate-400 hover:text-white text-sm">✕</button>
+            </div>
+            <p class="text-xs text-slate-400 mb-4">Preview any season or holiday theme with live animations, or reset back to the automatic calendar cycle.</p>
+
+            <button onclick="selectTheme('auto')" id="theme-btn-auto" class="w-full mb-4 py-2.5 px-4 rounded-xl border border-indigo-500/40 bg-indigo-500/15 hover:bg-indigo-500/25 text-sm font-semibold text-white flex items-center justify-between transition">
+                <span>🔄 Automatic Seasonal Cycle (Default)</span>
+                <span id="auto-detected-label" class="text-xs text-indigo-300 font-normal"></span>
+            </button>
+
+            <div class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Four Seasons</div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
+                <button onclick="selectTheme('winter')" class="theme-opt p-3 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-800 text-center transition" data-theme="winter">
+                    <div class="text-2xl mb-1">❄️</div>
+                    <div class="text-xs font-semibold text-white">Winter</div>
+                    <div class="text-[10px] text-slate-400">Snowball Fight</div>
+                </button>
+                <button onclick="selectTheme('spring')" class="theme-opt p-3 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-800 text-center transition" data-theme="spring">
+                    <div class="text-2xl mb-1">🌸</div>
+                    <div class="text-xs font-semibold text-white">Spring</div>
+                    <div class="text-[10px] text-slate-400">Cherry Blossoms</div>
+                </button>
+                <button onclick="selectTheme('summer')" class="theme-opt p-3 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-800 text-center transition" data-theme="summer">
+                    <div class="text-2xl mb-1">☀️</div>
+                    <div class="text-xs font-semibold text-white">Summer</div>
+                    <div class="text-[10px] text-slate-400">Beach & Waves</div>
+                </button>
+                <button onclick="selectTheme('autumn')" class="theme-opt p-3 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-800 text-center transition" data-theme="autumn">
+                    <div class="text-2xl mb-1">🍂</div>
+                    <div class="text-xs font-semibold text-white">Autumn</div>
+                    <div class="text-[10px] text-slate-400">Falling Leaves</div>
+                </button>
+            </div>
+
+            <div class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Holiday Specials</div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <button onclick="selectTheme('christmas')" class="theme-opt p-3 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-800 text-center transition" data-theme="christmas">
+                    <div class="text-2xl mb-1">🎄</div>
+                    <div class="text-xs font-semibold text-white">Christmas</div>
+                    <div class="text-[10px] text-slate-400">Cozy Fireplace</div>
+                </button>
+                <button onclick="selectTheme('halloween')" class="theme-opt p-3 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-800 text-center transition" data-theme="halloween">
+                    <div class="text-2xl mb-1">🎃</div>
+                    <div class="text-xs font-semibold text-white">Halloween</div>
+                    <div class="text-[10px] text-slate-400">Spooky Night</div>
+                </button>
+                <button onclick="selectTheme('easter')" class="theme-opt p-3 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-800 text-center transition" data-theme="easter">
+                    <div class="text-2xl mb-1">🐰</div>
+                    <div class="text-xs font-semibold text-white">Easter</div>
+                    <div class="text-[10px] text-slate-400">Hopping Bunnies</div>
+                </button>
+                <button onclick="selectTheme('july4')" class="theme-opt p-3 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-800 text-center transition" data-theme="july4">
+                    <div class="text-2xl mb-1">🎆</div>
+                    <div class="text-xs font-semibold text-white">4th of July</div>
+                    <div class="text-[10px] text-slate-400">Live Fireworks</div>
+                </button>
+            </div>
+
+            <div class="flex justify-end mt-6">
+                <button onclick="toggleThemeModal(false)" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-sm">Done</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Modal 1: Add Custom Task -->
     <div id="task-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
@@ -120,7 +299,7 @@
             </div>
             <div class="flex justify-end gap-2 mt-6">
                 <button onclick="toggleModal(false)" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-sm">Cancel</button>
-                <button onclick="addCustomTask()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium">Save Task</button>
+                <button onclick="addCustomTask()" class="px-4 py-2 rounded-lg theme-accent-bg text-white text-sm font-medium">Save Task</button>
             </div>
         </div>
     </div>
@@ -145,7 +324,7 @@
                 <button onclick="resetTaskSchedule()" class="text-xs text-slate-400 hover:text-rose-400 underline">Reset to course rule</button>
                 <div class="flex gap-2">
                     <button onclick="toggleEditModal(false)" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-sm">Cancel</button>
-                    <button onclick="saveTaskSchedule()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium">Save & Sync</button>
+                    <button onclick="saveTaskSchedule()" class="px-4 py-2 rounded-lg theme-accent-bg text-white text-sm font-medium">Save & Sync</button>
                 </div>
             </div>
         </div>
@@ -174,7 +353,7 @@
                 <button onclick="resetAllCourseRules()" class="text-xs text-slate-400 hover:text-rose-400 underline">Reset all to preset defaults</button>
                 <div class="flex gap-2">
                     <button onclick="toggleRulesModal(false)" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-sm">Cancel</button>
-                    <button onclick="saveRulesFromModal()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium">Save & Sync Rules</button>
+                    <button onclick="saveRulesFromModal()" class="px-4 py-2 rounded-lg theme-accent-bg text-white text-sm font-medium">Save & Sync Rules</button>
                 </div>
             </div>
         </div>
@@ -191,7 +370,7 @@
             </div>
             <div class="flex justify-end gap-2 mt-6">
                 <button onclick="toggleSyncModal(false)" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-sm">Close</button>
-                <button onclick="saveSyncToken()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium">Save & Sync Now</button>
+                <button onclick="saveSyncToken()" class="px-4 py-2 rounded-lg theme-accent-bg text-white text-sm font-medium">Save & Sync Now</button>
             </div>
         </div>
     </div>
@@ -206,6 +385,7 @@
         let customTasks = JSON.parse(localStorage.getItem('hw_custom_tasks') || '[]');
         let globalDefaultTime = localStorage.getItem('hw_global_default_time') || '22:00';
         let courseRules = JSON.parse(localStorage.getItem('hw_course_rules') || '{}');
+        let themePreference = localStorage.getItem('hw_theme_pref') || 'auto';
 
         let activeCourse = 'ALL';
         let currentView = 'checklist';
@@ -214,13 +394,599 @@
         let calYear = today.getFullYear();
         let calMonth = today.getMonth();
 
+        // =====================================================================
+        // SEASONAL & HOLIDAY THEME ENGINE
+        // =====================================================================
+        const THEMES = {
+            winter: {
+                name: 'Winter Wonderland', icon: '❄️',
+                bgTop: '#0a192f', bgBottom: '#1e3a5f',
+                cardBg: 'rgba(15, 29, 54, 0.78)', cardBorder: 'rgba(147, 197, 253, 0.22)',
+                accent: '#38bdf8', accentHover: '#0284c7'
+            },
+            christmas: {
+                name: 'Cozy Christmas', icon: '🎄',
+                bgTop: '#071f18', bgBottom: '#2d0c13',
+                cardBg: 'rgba(20, 32, 26, 0.80)', cardBorder: 'rgba(252, 165, 165, 0.24)',
+                accent: '#e11d48', accentHover: '#be123c'
+            },
+            halloween: {
+                name: 'Spooky Halloween', icon: '🎃',
+                bgTop: '#120724', bgBottom: '#2b1204',
+                cardBg: 'rgba(26, 13, 42, 0.82)', cardBorder: 'rgba(251, 146, 60, 0.28)',
+                accent: '#f97316', accentHover: '#ea580c'
+            },
+            easter: {
+                name: 'Easter Meadow', icon: '🐰',
+                bgTop: '#1e1b4b', bgBottom: '#134e4a',
+                cardBg: 'rgba(30, 27, 75, 0.76)', cardBorder: 'rgba(244, 114, 182, 0.26)',
+                accent: '#ec4899', accentHover: '#db2777'
+            },
+            july4: {
+                name: '4th of July', icon: '🎆',
+                bgTop: '#060d26', bgBottom: '#1e1b4b',
+                cardBg: 'rgba(12, 20, 48, 0.80)', cardBorder: 'rgba(248, 113, 113, 0.26)',
+                accent: '#ef4444', accentHover: '#dc2626'
+            },
+            spring: {
+                name: 'Spring Blossom', icon: '🌸',
+                bgTop: '#0f2922', bgBottom: '#1e3a2f',
+                cardBg: 'rgba(15, 38, 32, 0.78)', cardBorder: 'rgba(249, 168, 212, 0.24)',
+                accent: '#10b981', accentHover: '#059669'
+            },
+            summer: {
+                name: 'Summer Breeze', icon: '☀️',
+                bgTop: '#0c2d48', bgBottom: '#145374',
+                cardBg: 'rgba(12, 42, 68, 0.76)', cardBorder: 'rgba(253, 224, 71, 0.24)',
+                accent: '#06b6d4', accentHover: '#0891b2'
+            },
+            autumn: {
+                name: 'Autumn Harvest', icon: '🍂',
+                bgTop: '#1c1008', bgBottom: '#3b1709',
+                cardBg: 'rgba(38, 20, 12, 0.80)', cardBorder: 'rgba(251, 146, 60, 0.25)',
+                accent: '#d97706', accentHover: '#b45309'
+            }
+        };
+
+        function getEasterDate(year) {
+            const a = year % 19;
+            const b = Math.floor(year / 100);
+            const c = year % 100;
+            const d = Math.floor(b / 4);
+            const e = b % 4;
+            const f = Math.floor((b + 8) / 25);
+            const g = Math.floor((b - f + 1) / 3);
+            const h = (19 * a + b - d - g + 15) % 30;
+            const i = Math.floor(c / 4);
+            const k = c % 4;
+            const l = (32 + 2 * e + 2 * i - h - k) % 7;
+            const m = Math.floor((a + 11 * h + 22 * l) / 451);
+            const month = Math.floor((h + l - 7 * m + 114) / 31);
+            const day = ((h + l - 7 * m + 114) % 31) + 1;
+            return new Date(year, month - 1, day);
+        }
+
+        function detectSeasonalTheme(dateObj = new Date()) {
+            const y = dateObj.getFullYear();
+            const m = dateObj.getMonth() + 1; // 1..12
+            const d = dateObj.getDate();
+
+            // 1. Check Holiday Windows first
+            if (m === 12) return 'christmas'; // December -> Christmas
+            if ((m === 10 && d >= 15) || (m === 11 && d === 1)) return 'halloween'; // Oct 15 - Nov 1 -> Halloween
+            if (m === 7 && d >= 1 && d <= 7) return 'july4'; // July 1 - July 7 -> 4th of July
+
+            // Check Easter window (7 days before Easter Sunday to 2 days after)
+            const easter = getEasterDate(y);
+            const diffDays = Math.round((dateObj - easter) / 86400000);
+            if (diffDays >= -7 && diffDays <= 2) return 'easter';
+
+            // 2. Fallback to Four Main Seasons
+            if (m === 1 || m === 2) return 'winter';
+            if (m >= 3 && m <= 5) return 'spring';
+            if (m >= 6 && m <= 8) return 'summer';
+            return 'autumn';
+        }
+
+        function getActiveThemeKey() {
+            return (themePreference === 'auto' || !THEMES[themePreference])
+                ? detectSeasonalTheme()
+                : themePreference;
+        }
+
+        function buildScenerySvg(themeKey) {
+            if (themeKey === 'winter') {
+                return `
+                <svg viewBox="0 0 1440 220" class="w-full max-w-[1600px] h-[160px] sm:h-[210px]" preserveAspectRatio="xMidYMax slice">
+                    <!-- Snowy Back Hills -->
+                    <path d="M0,150 Q360,90 720,145 T1440,130 L1440,220 L0,220 Z" fill="#cbd5e1" opacity="0.25"/>
+                    <path d="M0,175 Q420,120 900,168 T1440,155 L1440,220 L0,220 Z" fill="#e2e8f0" opacity="0.4"/>
+                    <!-- Pine Trees -->
+                    <g transform="translate(120, 95)" opacity="0.75">
+                        <polygon points="25,0 0,45 50,45" fill="#1e3a5f"/><polygon points="25,20 -5,75 55,75" fill="#0f2942"/>
+                        <polygon points="25,0 10,25 40,25" fill="#f8fafc"/>
+                    </g>
+                    <g transform="translate(1260, 105)" opacity="0.75">
+                        <polygon points="25,0 0,45 50,45" fill="#1e3a5f"/><polygon points="25,20 -5,75 55,75" fill="#0f2942"/>
+                        <polygon points="25,0 10,25 40,25" fill="#f8fafc"/>
+                    </g>
+                    <!-- Cartoon Kid Sledding on Left Slope -->
+                    <g class="sledder" transform="translate(210, 125)">
+                        <line x1="0" y1="22" x2="36" y2="28" stroke="#991b1b" stroke-width="4" stroke-linecap="round"/>
+                        <circle cx="18" cy="6" r="7" fill="#fde047"/>
+                        <path d="M12,13 Q18,22 26,22" stroke="#ef4444" stroke-width="7" stroke-linecap="round" fill="none"/>
+                    </g>
+                    <!-- Cheerful Snowman in Center -->
+                    <g transform="translate(700, 118)">
+                        <circle cx="25" cy="52" r="20" fill="#f8fafc"/>
+                        <circle cx="25" cy="27" r="14" fill="#f8fafc"/>
+                        <circle cx="25" cy="8" r="10" fill="#f8fafc"/>
+                        <rect x="15" y="-6" width="20" height="4" fill="#1e293b"/>
+                        <rect x="18" y="-18" width="14" height="12" fill="#1e293b"/>
+                        <polygon points="25,8 37,11 25,13" fill="#f97316"/>
+                        <path d="M17,16 Q25,20 33,16" stroke="#ef4444" stroke-width="4" fill="none"/>
+                        <line x1="33" y1="16" x2="36" y2="28" stroke="#ef4444" stroke-width="4"/>
+                    </g>
+                    <!-- Cartoon Snowball Fight on Right! -->
+                    <g transform="translate(920, 128)">
+                        <!-- Kid 1 (Left, Blue Coat) -->
+                        <g transform="translate(0, 0)">
+                            <rect x="8" y="20" width="16" height="24" rx="6" fill="#2563eb"/>
+                            <circle cx="16" cy="11" r="8" fill="#fed7aa"/>
+                            <path d="M8,9 Q16,0 24,9" fill="#ef4444"/>
+                            <circle cx="16" cy="2" r="3" fill="#f8fafc"/>
+                            <line class="kid-arm-1" x1="20" y1="24" x2="32" y2="14" stroke="#2563eb" stroke-width="5" stroke-linecap="round"/>
+                        </g>
+                        <!-- Flying Snowballs -->
+                        <circle class="snowball-1" cx="30" cy="15" r="4.5" fill="#ffffff"/>
+                        <circle class="snowball-2" cx="215" cy="15" r="4.5" fill="#ffffff"/>
+                        <!-- Kid 2 (Right, Emerald Coat) -->
+                        <g transform="translate(215, 0)">
+                            <rect x="8" y="20" width="16" height="24" rx="6" fill="#059669"/>
+                            <circle cx="16" cy="11" r="8" fill="#fed7aa"/>
+                            <path d="M8,9 Q16,0 24,9" fill="#f59e0b"/>
+                            <circle cx="16" cy="2" r="3" fill="#f8fafc"/>
+                            <line class="kid-arm-2" x1="12" y1="24" x2="0" y2="14" stroke="#059669" stroke-width="5" stroke-linecap="round"/>
+                        </g>
+                    </g>
+                </svg>`;
+            }
+            if (themeKey === 'christmas') {
+                return `
+                <svg viewBox="0 0 1440 240" class="w-full max-w-[1600px] h-[175px] sm:h-[225px]" preserveAspectRatio="xMidYMax slice">
+                    <!-- Cozy Floor / Ground -->
+                    <rect x="0" y="195" width="1440" height="45" fill="#27120b" opacity="0.7"/>
+                    <ellipse cx="420" cy="210" rx="290" ry="18" fill="#7f1d1d" opacity="0.65"/>
+                    <!-- Brick Fireplace with Animated Flickering Fire -->
+                    <g transform="translate(170, 78)">
+                        <rect x="0" y="10" width="170" height="110" rx="4" fill="#7c2d12" stroke="#431407" stroke-width="2"/>
+                        <rect x="-12" y="0" width="194" height="14" rx="4" fill="#451a03"/>
+                        <!-- Mantle Garland & Stockings -->
+                        <path d="M0,14 Q45,32 85,14 Q125,32 170,14" stroke="#15803d" stroke-width="6" fill="none"/>
+                        <path d="M35,16 L35,38 Q35,45 45,45 L48,45 Q52,45 52,39 L44,36 L44,16 Z" fill="#dc2626"/>
+                        <rect x="33" y="14" width="13" height="5" rx="2" fill="#f8fafc"/>
+                        <path d="M120,16 L120,38 Q120,45 130,45 L133,45 Q137,45 137,39 L129,36 L129,16 Z" fill="#dc2626"/>
+                        <rect x="118" y="14" width="13" height="5" rx="2" fill="#f8fafc"/>
+                        <!-- Firebox -->
+                        <path d="M32,120 L32,62 Q85,42 138,62 L138,120 Z" fill="#090504"/>
+                        <!-- Animated Glowing Fire -->
+                        <circle cx="85" cy="95" r="42" fill="#ea580c" opacity="0.22" class="flame-main"/>
+                        <g class="flame-main">
+                            <path d="M55,112 Q65,65 85,54 Q105,65 115,112 Z" fill="#ea580c"/>
+                            <path d="M45,112 Q55,75 72,68 Q80,90 75,112 Z" fill="#f97316"/>
+                            <path d="M95,112 Q105,72 122,70 Q118,95 112,112 Z" fill="#f97316"/>
+                        </g>
+                        <g class="flame-inner">
+                            <path d="M68,112 Q78,76 85,68 Q95,78 102,112 Z" fill="#facc15"/>
+                            <path d="M77,112 Q85,88 85,82 Q90,90 93,112 Z" fill="#fef08a"/>
+                        </g>
+                        <!-- Firewood Logs -->
+                        <rect x="48" y="106" width="74" height="10" rx="5" fill="#451a03" transform="rotate(-6 85 110)"/>
+                        <rect x="48" y="106" width="74" height="10" rx="5" fill="#290f02" transform="rotate(6 85 110)"/>
+                    </g>
+                    <!-- Decorated Christmas Tree Next to the Fireplace -->
+                    <g transform="translate(450, 22)">
+                        <rect x="68" y="152" width="24" height="26" fill="#451a03"/>
+                        <polygon points="80,15 20,85 140,85" fill="#14532d"/>
+                        <polygon points="80,50 10,125 150,125" fill="#166534"/>
+                        <polygon points="80,85 0,158 160,158" fill="#15803d"/>
+                        <!-- Glowing Star Topper -->
+                        <polygon points="80,0 85,12 98,12 88,19 92,31 80,24 68,31 72,19 62,12 75,12" fill="#facc15" class="light-1"/>
+                        <!-- Twinkling String Lights -->
+                        <circle cx="65" cy="58" r="4" fill="#ef4444" class="light-1"/>
+                        <circle cx="95" cy="68" r="4" fill="#fde047" class="light-2"/>
+                        <circle cx="50" cy="98" r="4.5" fill="#38bdf8" class="light-3"/>
+                        <circle cx="82" cy="102" r="4.5" fill="#f43f5e" class="light-1"/>
+                        <circle cx="112" cy="95" r="4.5" fill="#4ade80" class="light-2"/>
+                        <circle cx="35" cy="138" r="4.5" fill="#fde047" class="light-3"/>
+                        <circle cx="70" cy="135" r="5" fill="#38bdf8" class="light-2"/>
+                        <circle cx="102" cy="142" r="4.5" fill="#ef4444" class="light-1"/>
+                        <circle cx="130" cy="132" r="4.5" fill="#c084fc" class="light-3"/>
+                        <!-- Wrapped Presents Under Tree -->
+                        <rect x="22" y="156" width="28" height="22" rx="2" fill="#dc2626"/>
+                        <rect x="34" y="156" width="4" height="22" fill="#facc15"/>
+                        <rect x="108" y="152" width="32" height="26" rx="2" fill="#2563eb"/>
+                        <rect x="122" y="152" width="4" height="26" fill="#f8fafc"/>
+                    </g>
+                </svg>`;
+            }
+            if (themeKey === 'halloween') {
+                return `
+                <svg viewBox="0 0 1440 220" class="w-full max-w-[1600px] h-[165px] sm:h-[210px]" preserveAspectRatio="xMidYMax slice">
+                    <!-- Glowing Full Moon -->
+                    <circle cx="1180" cy="68" r="46" fill="#fef08a" opacity="0.85"/>
+                    <circle cx="1180" cy="68" r="62" fill="#fde047" opacity="0.15"/>
+                    <!-- Spooky Hills -->
+                    <path d="M0,175 Q380,115 760,170 T1440,150 L1440,220 L0,220 Z" fill="#090414" opacity="0.85"/>
+                    <!-- Haunted Mansion Silhouette -->
+                    <g transform="translate(180, 55)" fill="#090414">
+                        <rect x="20" y="45" width="75" height="75"/>
+                        <polygon points="10,45 57,5 105,45"/>
+                        <rect x="42" y="15" width="30" height="35"/>
+                        <polygon points="36,15 57,-12 78,15"/>
+                        <rect x="32" y="60" width="14" height="20" fill="#facc15" class="light-1"/>
+                        <rect x="68" y="60" width="14" height="20" fill="#f97316" class="light-2"/>
+                        <rect x="50" y="92" width="16" height="28" rx="8" fill="#ea580c" class="flame-main"/>
+                    </g>
+                    <!-- Floating Cartoon Ghost -->
+                    <g class="ghost-bob" transform="translate(520, 95)" opacity="0.85">
+                        <path d="M0,25 Q0,0 20,0 Q40,0 40,25 L40,52 L32,45 L24,52 L16,45 L8,52 L0,45 Z" fill="#f8fafc"/>
+                        <circle cx="14" cy="18" r="3" fill="#0f172a"/>
+                        <circle cx="26" cy="18" r="3" fill="#0f172a"/>
+                        <ellipse cx="20" cy="27" rx="4" ry="5" fill="#0f172a"/>
+                    </g>
+                    <!-- Flickering Jack-O'-Lanterns -->
+                    <g transform="translate(940, 152)">
+                        <ellipse cx="24" cy="20" rx="22" ry="17" fill="#ea580c"/>
+                        <path d="M21,3 Q24,-5 29,-2" stroke="#15803d" stroke-width="4" fill="none"/>
+                        <polygon points="14,15 19,8 22,15" fill="#fef08a" class="flame-main"/>
+                        <polygon points="28,15 31,8 36,15" fill="#fef08a" class="flame-main"/>
+                        <path d="M13,24 Q24,32 35,24" stroke="#fef08a" stroke-width="3" fill="none" class="flame-inner"/>
+                    </g>
+                </svg>`;
+            }
+            if (themeKey === 'easter') {
+                return `
+                <svg viewBox="0 0 1440 210" class="w-full max-w-[1600px] h-[155px] sm:h-[200px]" preserveAspectRatio="xMidYMax slice">
+                    <path d="M0,155 Q360,105 720,155 T1440,140 L1440,210 L0,210 Z" fill="#10b981" opacity="0.28"/>
+                    <path d="M0,175 Q420,135 920,172 T1440,160 L1440,210 L0,210 Z" fill="#34d399" opacity="0.35"/>
+                    <!-- Painted Easter Eggs -->
+                    <g transform="translate(260, 148)">
+                        <ellipse cx="16" cy="20" rx="14" ry="19" fill="#f472b6"/>
+                        <path d="M4,16 Q16,22 28,16" stroke="#fde047" stroke-width="3" fill="none"/>
+                        <path d="M5,25 Q16,31 27,25" stroke="#38bdf8" stroke-width="3" fill="none"/>
+                    </g>
+                    <g transform="translate(1120, 152)">
+                        <ellipse cx="16" cy="20" rx="14" ry="19" fill="#a78bfa"/>
+                        <circle cx="12" cy="14" r="3" fill="#fde047"/>
+                        <circle cx="21" cy="22" r="3" fill="#34d399"/>
+                        <circle cx="13" cy="28" r="2.5" fill="#f472b6"/>
+                    </g>
+                    <!-- Animated Hopping Cartoon Bunnies -->
+                    <g class="bunny-1" transform="translate(520, 132)">
+                        <ellipse cx="22" cy="32" rx="16" ry="13" fill="#f8fafc"/>
+                        <circle cx="34" cy="22" r="10" fill="#f8fafc"/>
+                        <circle cx="7" cy="32" r="5" fill="#f8fafc"/>
+                        <ellipse cx="31" cy="6" rx="3.5" ry="11" fill="#f8fafc"/>
+                        <ellipse cx="31" cy="6" rx="1.8" ry="8" fill="#f472b6"/>
+                        <ellipse cx="37" cy="7" rx="3.5" ry="11" fill="#f8fafc" transform="rotate(12 37 7)"/>
+                        <circle cx="37" cy="20" r="2" fill="#0f172a"/>
+                        <circle cx="42" cy="23" r="2" fill="#f472b6"/>
+                    </g>
+                    <g class="bunny-2" transform="translate(860, 138)">
+                        <ellipse cx="22" cy="32" rx="15" ry="12" fill="#fdf2f8"/>
+                        <circle cx="12" cy="22" r="9.5" fill="#fdf2f8"/>
+                        <circle cx="37" cy="32" r="5" fill="#fdf2f8"/>
+                        <ellipse cx="10" cy="6" rx="3" ry="10" fill="#fdf2f8" transform="rotate(-10 10 6)"/>
+                        <ellipse cx="16" cy="6" rx="3" ry="10" fill="#fdf2f8"/>
+                        <circle cx="9" cy="20" r="2" fill="#0f172a"/>
+                    </g>
+                </svg>`;
+            }
+            if (themeKey === 'july4') {
+                return `
+                <svg viewBox="0 0 1440 200" class="w-full max-w-[1600px] h-[145px] sm:h-[185px]" preserveAspectRatio="xMidYMax slice">
+                    <!-- Lakefront & City Silhouette Watching Fireworks -->
+                    <rect x="0" y="165" width="1440" height="35" fill="#091536" opacity="0.8"/>
+                    <path d="M0,165 L120,165 L120,130 L155,130 L155,165 L240,165 L240,115 L285,115 L285,165 L1440,165 Z" fill="#050b1c"/>
+                    <!-- Patriotic Bunting Along Bottom -->
+                    <path d="M420,165 Q500,192 580,165 Q660,192 740,165 Q820,192 900,165 Q980,192 1060,165" stroke="#ef4444" stroke-width="5" fill="none"/>
+                    <path d="M420,165 Q500,184 580,165 Q660,184 740,165 Q820,184 900,165 Q980,184 1060,165" stroke="#f8fafc" stroke-width="3" fill="none"/>
+                    <path d="M420,165 Q500,176 580,165 Q660,176 740,165 Q820,176 900,165 Q980,176 1060,165" stroke="#3b82f6" stroke-width="4" fill="none"/>
+                </svg>`;
+            }
+            if (themeKey === 'spring') {
+                return `
+                <svg viewBox="0 0 1440 220" class="w-full max-w-[1600px] h-[160px] sm:h-[205px]" preserveAspectRatio="xMidYMax slice">
+                    <!-- Soft Rainbow Arc -->
+                    <path d="M880,210 A240,240 0 0,1 1360,210" stroke="#f43f5e" stroke-width="6" fill="none" opacity="0.22"/>
+                    <path d="M892,210 A228,228 0 0,1 1348,210" stroke="#facc15" stroke-width="6" fill="none" opacity="0.22"/>
+                    <path d="M904,210 A216,216 0 0,1 1336,210" stroke="#34d399" stroke-width="6" fill="none" opacity="0.22"/>
+                    <path d="M916,210 A204,204 0 0,1 1324,210" stroke="#38bdf8" stroke-width="6" fill="none" opacity="0.22"/>
+                    <!-- Lush Spring Hills -->
+                    <path d="M0,160 Q400,105 820,158 T1440,145 L1440,220 L0,220 Z" fill="#10b981" opacity="0.28"/>
+                    <!-- Cherry Blossom Tree -->
+                    <g transform="translate(140, 55)">
+                        <path d="M55,145 Q58,95 45,65 M55,110 Q85,82 105,68" stroke="#451a03" stroke-width="8" stroke-linecap="round" fill="none"/>
+                        <circle cx="45" cy="55" r="34" fill="#f472b6" opacity="0.65"/>
+                        <circle cx="82" cy="52" r="38" fill="#fbcfe8" opacity="0.65"/>
+                        <circle cx="108" cy="68" r="28" fill="#f9a8d4" opacity="0.65"/>
+                    </g>
+                </svg>`;
+            }
+            if (themeKey === 'summer') {
+                return `
+                <svg viewBox="0 0 1440 220" class="w-full max-w-[1600px] h-[165px] sm:h-[210px]" preserveAspectRatio="xMidYMax slice">
+                    <!-- Glowing Rotating Summer Sun -->
+                    <g transform="translate(1220, 68)">
+                        <circle cx="0" cy="0" r="34" fill="#facc15" opacity="0.85"/>
+                        <g class="sun-rays" stroke="#fde047" stroke-width="3" stroke-linecap="round" opacity="0.6">
+                            <line x1="0" y1="-48" x2="0" y2="-38"/><line x1="0" y1="38" x2="0" y2="48"/>
+                            <line x1="-48" y1="0" x2="-38" y2="0"/><line x1="38" y1="0" x2="48" y2="0"/>
+                            <line x1="-34" y1="-34" x2="-27" y2="-27"/><line x1="27" y1="27" x2="34" y2="34"/>
+                            <line x1="34" y1="-34" x2="27" y2="-27"/><line x1="-27" y1="27" x2="-34" y2="34"/>
+                        </g>
+                    </g>
+                    <!-- Bobbing Sailboat -->
+                    <g class="sailboat" transform="translate(880, 118)">
+                        <polygon points="0,38 55,38 45,50 10,50" fill="#f8fafc"/>
+                        <polygon points="26,5 26,35 48,35" fill="#ef4444"/>
+                        <polygon points="23,10 23,35 6,35" fill="#fef08a"/>
+                    </g>
+                    <!-- Animated Ocean Waves & Sandy Beach -->
+                    <path class="ocean-wave" d="M-40,165 Q180,145 360,165 T720,165 T1080,165 T1480,165 L1480,220 L-40,220 Z" fill="#0284c7" opacity="0.45"/>
+                    <path d="M0,180 Q320,145 640,220 L0,220 Z" fill="#fde047" opacity="0.38"/>
+                </svg>`;
+            }
+            // Default: Autumn
+            return `
+            <svg viewBox="0 0 1440 220" class="w-full max-w-[1600px] h-[160px] sm:h-[205px]" preserveAspectRatio="xMidYMax slice">
+                <path d="M0,158 Q380,108 780,158 T1440,142 L1440,220 L0,220 Z" fill="#7c2d12" opacity="0.38"/>
+                <path d="M0,178 Q460,138 940,176 T1440,165 L1440,220 L0,220 Z" fill="#9a3412" opacity="0.45"/>
+                <!-- Cozy Cabin with Animated Chimney Smoke -->
+                <g transform="translate(210, 108)">
+                    <circle cx="66" cy="-8" r="7" fill="#cbd5e1" class="chimney-smoke-1"/>
+                    <circle cx="68" cy="-4" r="9" fill="#cbd5e1" class="chimney-smoke-2"/>
+                    <rect x="58" y="2" width="12" height="24" fill="#7c2d12"/>
+                    <rect x="12" y="25" width="68" height="45" fill="#451a03"/>
+                    <polygon points="4,25 46,-2 88,25" fill="#78350f"/>
+                    <rect x="26" y="38" width="16" height="16" rx="2" fill="#facc15" class="light-1"/>
+                </g>
+                <!-- Autumn Trees & Pumpkins -->
+                <g transform="translate(1120, 88)">
+                    <rect x="26" y="48" width="10" height="35" fill="#451a03"/>
+                    <circle cx="31" cy="34" r="28" fill="#ea580c" opacity="0.8"/>
+                    <circle cx="15" cy="42" r="20" fill="#d97706" opacity="0.8"/>
+                    <ellipse cx="75" cy="74" rx="14" ry="11" fill="#f97316"/>
+                    <ellipse cx="98" cy="76" rx="11" ry="9" fill="#ea580c"/>
+                </g>
+            </svg>`;
+        }
+
+        // --- PARTICLE / CANVAS ANIMATION ENGINE ---
+        const canvas = document.getElementById('theme-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        let fireworks = [];
+        let currentCanvasTheme = '';
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function initParticlesForTheme(themeKey) {
+            currentCanvasTheme = themeKey;
+            particles = [];
+            fireworks = [];
+            const count = themeKey === 'july4' ? 35 : 55;
+
+            for (let i = 0; i < count; i++) {
+                particles.push(makeParticle(themeKey, true));
+            }
+        }
+
+        function makeParticle(themeKey, randomY = false) {
+            const w = canvas.width || 1200;
+            const h = canvas.height || 800;
+            if (themeKey === 'christmas') {
+                const isEmber = i % 3 === 0;
+                return {
+                    x: Math.random() * w,
+                    y: randomY ? Math.random() * h : (isEmber ? h - 20 : -10),
+                    vx: (Math.random() - 0.5) * 0.8,
+                    vy: isEmber ? -(0.8 + Math.random() * 1.4) : (0.8 + Math.random() * 1.5),
+                    r: isEmber ? (1.5 + Math.random() * 2.5) : (2 + Math.random() * 3),
+                    color: isEmber ? (Math.random() > 0.5 ? '#f97316' : '#facc15') : 'rgba(255,255,255,0.8)',
+                    isEmber
+                };
+            }
+            const leafColors = ['#ea580c', '#d97706', '#dc2626', '#f59e0b'];
+            const springColors = ['#fbcfe8', '#f9a8d4', '#f472b6', '#fde047'];
+            return {
+                x: Math.random() * w,
+                y: randomY ? Math.random() * h : -15,
+                vx: (Math.random() - 0.5) * 1.1,
+                vy: 0.7 + Math.random() * 1.5,
+                r: 2.5 + Math.random() * 3.5,
+                angle: Math.random() * Math.PI * 2,
+                spin: (Math.random() - 0.5) * 0.04,
+                color: themeKey === 'autumn'
+                    ? leafColors[Math.floor(Math.random() * leafColors.length)]
+                    : (themeKey === 'spring' || themeKey === 'easter')
+                        ? springColors[Math.floor(Math.random() * springColors.length)]
+                        : '#ffffff'
+            };
+        }
+
+        let i = 0;
+        function animateCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const t = currentCanvasTheme;
+
+            if (t === 'july4') {
+                // Twinkling background stars
+                particles.forEach(p => {
+                    p.angle += 0.03;
+                    ctx.fillStyle = `rgba(255, 255, 255, ${0.25 + Math.abs(Math.sin(p.angle)) * 0.6})`;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y * 0.6, 1.5, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+
+                // Spawn fireworks periodically
+                if (Math.random() < 0.045) {
+                    const colors = ['#ef4444', '#ffffff', '#38bdf8', '#facc15', '#a855f7'];
+                    const col = colors[Math.floor(Math.random() * colors.length)];
+                    const fx = 100 + Math.random() * (canvas.width - 200);
+                    const fy = 80 + Math.random() * (canvas.height * 0.45);
+                    for (let s = 0; s < 28; s++) {
+                        const ang = (Math.PI * 2 * s) / 28;
+                        const spd = 1.2 + Math.random() * 2.8;
+                        fireworks.push({
+                            x: fx, y: fy,
+                            vx: Math.cos(ang) * spd,
+                            vy: Math.sin(ang) * spd,
+                            alpha: 1,
+                            color: col
+                        });
+                    }
+                }
+
+                for (let f = fireworks.length - 1; f >= 0; f--) {
+                    const fw = fireworks[f];
+                    fw.x += fw.vx;
+                    fw.y += fw.vy;
+                    fw.vy += 0.04; // gravity
+                    fw.alpha -= 0.018;
+                    if (fw.alpha <= 0) {
+                        fireworks.splice(f, 1);
+                        continue;
+                    }
+                    ctx.globalAlpha = fw.alpha;
+                    ctx.fillStyle = fw.color;
+                    ctx.beginPath();
+                    ctx.arc(fw.x, fw.y, 2.2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+            } else {
+                particles.forEach((p, idx) => {
+                    i = idx;
+                    p.x += p.vx + Math.sin((p.y + idx) * 0.015) * 0.4;
+                    p.y += p.vy;
+                    p.angle = (p.angle || 0) + (p.spin || 0.02);
+
+                    if (p.y > canvas.height + 20 || p.y < -25) {
+                        Object.assign(p, makeParticle(t, false));
+                    }
+
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    if (t === 'autumn' || t === 'spring' || t === 'easter') {
+                        ctx.rotate(p.angle);
+                        ctx.fillStyle = p.color;
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, p.r * 1.5, p.r * 0.85, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                    } else if (t === 'halloween') {
+                        if (idx % 5 === 0) {
+                            // Flying bat silhouette
+                            const wing = Math.sin(Date.now() * 0.012 + idx) * 5;
+                            ctx.strokeStyle = '#1e1b4b';
+                            ctx.lineWidth = 2.2;
+                            ctx.beginPath();
+                            ctx.moveTo(-8, wing);
+                            ctx.quadraticCurveTo(-4, -4, 0, 0);
+                            ctx.quadraticCurveTo(4, -4, 8, wing);
+                            ctx.stroke();
+                        } else {
+                            ctx.fillStyle = 'rgba(251, 146, 60, 0.55)';
+                            ctx.beginPath();
+                            ctx.arc(0, 0, p.r * 0.7, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    } else if (t === 'summer') {
+                        ctx.fillStyle = 'rgba(253, 224, 71, 0.45)';
+                        ctx.beginPath();
+                        ctx.arc(0, 0, p.r * 0.8, 0, Math.PI * 2);
+                        ctx.fill();
+                    } else {
+                        // Winter & Christmas snow/embers
+                        ctx.fillStyle = p.color || 'rgba(255, 255, 255, 0.8)';
+                        ctx.beginPath();
+                        ctx.arc(0, 0, p.r, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    ctx.restore();
+                });
+            }
+            requestAnimationFrame(animateCanvas);
+        }
+
+        function applyTheme() {
+            const activeKey = getActiveThemeKey();
+            const cfg = THEMES[activeKey] || THEMES.autumn;
+            const root = document.documentElement;
+
+            root.style.setProperty('--bg-top', cfg.bgTop);
+            root.style.setProperty('--bg-bottom', cfg.bgBottom);
+            root.style.setProperty('--card-bg', cfg.cardBg);
+            root.style.setProperty('--card-border', cfg.cardBorder);
+            root.style.setProperty('--accent', cfg.accent);
+            root.style.setProperty('--accent-hover', cfg.accentHover);
+
+            document.getElementById('theme-header-icon').textContent = cfg.icon;
+            const modeText = themePreference === 'auto' ? `Auto: ${cfg.name}` : cfg.name;
+            document.getElementById('theme-badge').textContent = `${cfg.icon} ${modeText}`;
+
+            const autoDetectKey = detectSeasonalTheme();
+            const autoLabel = document.getElementById('auto-detected-label');
+            if (autoLabel) {
+                autoLabel.textContent = `Currently: ${THEMES[autoDetectKey].icon} ${THEMES[autoDetectKey].name}`;
+            }
+
+            // Highlight active button in modal
+            document.querySelectorAll('.theme-opt').forEach(btn => {
+                const isSelected = themePreference !== 'auto' && btn.getAttribute('data-theme') === themePreference;
+                btn.className = 'theme-opt p-3 rounded-xl border text-center transition ' +
+                    (isSelected ? 'border-amber-400 bg-white/15 shadow' : 'border-slate-700 bg-slate-800/70 hover:bg-slate-800');
+            });
+            const autoBtn = document.getElementById('theme-btn-auto');
+            if (autoBtn) {
+                autoBtn.className = 'w-full mb-4 py-2.5 px-4 rounded-xl border text-sm font-semibold text-white flex items-center justify-between transition ' +
+                    (themePreference === 'auto' ? 'border-amber-400 bg-indigo-500/25' : 'border-slate-700 bg-slate-800/70 hover:bg-slate-800');
+            }
+
+            document.getElementById('theme-scenery').innerHTML = buildScenerySvg(activeKey);
+            initParticlesForTheme(activeKey);
+        }
+
+        function toggleThemeModal(show) {
+            const modal = document.getElementById('theme-modal');
+            modal.classList.toggle('hidden', !show);
+            modal.classList.toggle('flex', show);
+        }
+
+        function selectTheme(pref) {
+            themePreference = pref;
+            localStorage.setItem('hw_theme_pref', pref);
+            applyTheme();
+            pushRemoteState();
+        }
+
+        // =====================================================================
+        // CORE HOMEWORK & SCHEDULE LOGIC
+        // =====================================================================
         const COURSE_COLORS = [
-            'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
-            'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-            'bg-amber-500/15 text-amber-300 border-amber-500/30',
-            'bg-rose-500/15 text-rose-300 border-rose-500/30',
-            'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
-            'bg-purple-500/15 text-purple-300 border-purple-500/30'
+            'bg-indigo-500/20 text-indigo-200 border-indigo-400/30',
+            'bg-emerald-500/20 text-emerald-200 border-emerald-400/30',
+            'bg-amber-500/20 text-amber-200 border-amber-400/30',
+            'bg-rose-500/20 text-rose-200 border-rose-400/30',
+            'bg-cyan-500/20 text-cyan-200 border-cyan-400/30',
+            'bg-purple-500/20 text-purple-200 border-purple-400/30'
         ];
         const courseColorMap = {};
 
@@ -297,7 +1063,6 @@
                 const id = getBaseTaskId(copy);
                 copy._id = id;
 
-                // Apply dynamic Course Rules first
                 const rule = getRuleForCourse(copy.course);
                 const tLow = (copy.title || '').toLowerCase();
                 const isMajorAssessment = tLow.includes('essay') || tLow.includes('exam') || tLow.includes('test') || tLow.includes('paper');
@@ -321,7 +1086,6 @@
                 copy.iso_date = effDate;
                 copy.time_24 = effTime;
 
-                // Apply individual task overrides second (takes highest priority)
                 if (taskOverrides[id]) {
                     if (taskOverrides[id].iso_date) copy.iso_date = taskOverrides[id].iso_date;
                     if (taskOverrides[id].time_24) copy.time_24 = taskOverrides[id].time_24;
@@ -337,7 +1101,6 @@
             });
         }
 
-        // --- COURSE RULES MODAL FUNCTIONS ---
         function getAllCourseNames() {
             const set = new Set([...BOT_ASSIGNMENTS, ...customTasks].map(i => i.course).filter(Boolean));
             return Array.from(set);
@@ -348,7 +1111,7 @@
             const courses = getAllCourseNames();
             const container = document.getElementById('course-rules-list');
 
-            container.innerHTML = courses.map((c, idx) => {
+            container.innerHTML = courses.map(c => {
                 const r = getRuleForCourse(c);
                 const badgeStyle = getCourseStyle(c);
                 return `
@@ -447,6 +1210,11 @@
                         if (remoteData.globalDefaultTime) {
                             globalDefaultTime = remoteData.globalDefaultTime;
                         }
+                        if (remoteData.themePreference) {
+                            themePreference = remoteData.themePreference;
+                            localStorage.setItem('hw_theme_pref', themePreference);
+                            applyTheme();
+                        }
                         if (Array.isArray(remoteData.customTasks) && remoteData.customTasks.length > 0) {
                             const byId = {};
                             [...customTasks, ...remoteData.customTasks].forEach(t => {
@@ -462,7 +1230,7 @@
                     localStorage.setItem('hw_course_rules', JSON.stringify(courseRules));
                     localStorage.setItem('hw_global_default_time', globalDefaultTime);
                     localStorage.setItem('hw_custom_tasks', JSON.stringify(customTasks));
-                    setSyncStatus('☁️ Cloud synced', 'text-emerald-400');
+                    setSyncStatus('☁️ Cloud synced', 'text-emerald-300');
                     renderAll();
                 }
             } catch (e) {
@@ -474,7 +1242,7 @@
             const token = localStorage.getItem('hw_gh_token');
             if (!token || !GH_USER || GH_USER === 'YOUR_GITHUB_USERNAME') return;
 
-            setSyncStatus('☁️ Syncing...', 'text-amber-400');
+            setSyncStatus('☁️ Syncing...', 'text-amber-300');
             const apiUrl = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/completed.json`;
             const headers = {
                 'Authorization': `Bearer ${token}`,
@@ -496,12 +1264,13 @@
                     overrides: taskOverrides,
                     courseRules: courseRules,
                     globalDefaultTime: globalDefaultTime,
+                    themePreference: themePreference,
                     customTasks: customTasks
                 };
 
                 const contentB64 = btoa(unescape(encodeURIComponent(JSON.stringify(payloadObj, null, 2))));
                 const body = {
-                    message: 'Sync homework state & course rules',
+                    message: 'Sync homework state & theme',
                     content: contentB64,
                     branch: 'main'
                 };
@@ -514,12 +1283,12 @@
                 });
 
                 if (putRes.ok) {
-                    setSyncStatus('☁️ Cloud synced', 'text-emerald-400');
+                    setSyncStatus('☁️ Cloud synced', 'text-emerald-300');
                 } else {
                     setSyncStatus('⚠️ Sync token error', 'text-rose-400');
                 }
             } catch (e) {
-                setSyncStatus('⚠️ Offline (saved locally)', 'text-amber-400');
+                setSyncStatus('⚠️ Offline (saved locally)', 'text-amber-300');
             }
         }
 
@@ -539,7 +1308,7 @@
                 pushRemoteState();
             } else {
                 localStorage.removeItem('hw_gh_token');
-                setSyncStatus('Local mode', 'text-slate-500');
+                setSyncStatus('Local mode', 'text-slate-400');
             }
             toggleSyncModal(false);
         }
@@ -555,7 +1324,6 @@
             pushRemoteState();
         }
 
-        // --- EDIT SINGLE TASK DATE & TIME ---
         function openEditModal(taskId) {
             const allItems = getAllAssignments();
             const item = allItems.find(i => i._id === taskId);
@@ -612,11 +1380,11 @@
             document.getElementById('view-checklist').classList.toggle('hidden', view !== 'checklist');
             document.getElementById('view-calendar').classList.toggle('hidden', view !== 'calendar');
             document.getElementById('tab-checklist').className = view === 'checklist'
-                ? 'px-3 py-1.5 rounded-md bg-indigo-600 text-white shadow transition'
-                : 'px-3 py-1.5 rounded-md text-slate-400 hover:text-white transition';
+                ? 'px-3 py-1.5 rounded-md theme-accent-bg text-white shadow transition'
+                : 'px-3 py-1.5 rounded-md text-slate-300 hover:text-white transition';
             document.getElementById('tab-calendar').className = view === 'calendar'
-                ? 'px-3 py-1.5 rounded-md bg-indigo-600 text-white shadow transition'
-                : 'px-3 py-1.5 rounded-md text-slate-400 hover:text-white transition';
+                ? 'px-3 py-1.5 rounded-md theme-accent-bg text-white shadow transition'
+                : 'px-3 py-1.5 rounded-md text-slate-300 hover:text-white transition';
             renderAll();
         }
 
@@ -634,7 +1402,7 @@
                 const btn = document.createElement('button');
                 btn.textContent = c;
                 btn.className = 'px-3 py-1 rounded-full text-xs font-medium border transition ' +
-                    (active ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white');
+                    (active ? 'theme-accent-bg border-white/30 text-white shadow' : 'glass-card text-slate-300 hover:text-white');
                 btn.onclick = () => selectCourse(c);
                 container.appendChild(btn);
             });
@@ -663,7 +1431,7 @@
         function renderChecklist(items) {
             const container = document.getElementById('view-checklist');
             if (!items.length) {
-                container.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-xl p-10 text-center text-slate-400">🎉 No assignments match this filter!</div>`;
+                container.innerHTML = `<div class="glass-card border rounded-xl p-10 text-center text-slate-300">🎉 No assignments match this filter!</div>`;
                 return;
             }
 
@@ -676,25 +1444,25 @@
                 const readableTime = formatTime12h(item.time_24);
 
                 return `
-                <div class="bg-slate-900 border ${isDone ? 'border-slate-800/50 opacity-60' : 'border-slate-800 hover:border-slate-700'} rounded-xl p-4 flex items-start gap-4 transition">
+                <div class="glass-card border ${isDone ? 'opacity-55' : 'hover:border-white/30'} rounded-xl p-4 flex items-start gap-4 transition">
                     <input type="checkbox" ${isDone ? 'checked' : ''} onchange="toggleComplete('${id}')"
-                        class="mt-1 h-5 w-5 rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-0 cursor-pointer">
+                        class="mt-1 h-5 w-5 rounded border-slate-600 bg-slate-800 text-indigo-600 focus:ring-0 cursor-pointer">
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center flex-wrap gap-2 mb-1">
                             <span class="px-2.5 py-0.5 rounded-full text-xs font-medium border ${badgeStyle}">${item.course}</span>
                             <button onclick="openEditModal('${id}')" title="Click to change date or time"
-                                class="text-xs font-medium text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2.5 py-0.5 rounded flex items-center gap-1.5 transition">
+                                class="text-xs font-medium text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/25 px-2.5 py-0.5 rounded flex items-center gap-1.5 transition">
                                 <span>📅 ${readableDate}</span>
-                                <span class="text-indigo-300">• ⏰ ${readableTime}</span>
-                                ${item._is_edited ? `<span class="text-[10px] text-emerald-400">(edited)</span>` : (item._rule_shifted ? `<span class="text-[10px] text-cyan-400">(night-before)</span>` : '')}
+                                <span class="text-sky-200">• ⏰ ${readableTime}</span>
+                                ${item._is_edited ? `<span class="text-[10px] text-emerald-300">(edited)</span>` : (item._rule_shifted ? `<span class="text-[10px] text-cyan-300">(night-before)</span>` : '')}
                             </button>
                         </div>
-                        <h3 class="text-base font-semibold ${isDone ? 'line-through text-slate-500' : 'text-white'}">${item.title}</h3>
-                        <p class="text-xs text-slate-400 mt-1">${item.status_or_details || ''}</p>
+                        <h3 class="text-base font-semibold ${isDone ? 'line-through text-slate-400' : 'text-white'}">${item.title}</h3>
+                        <p class="text-xs text-slate-300/85 mt-1">${item.status_or_details || ''}</p>
                     </div>
                     <div class="flex items-center gap-2">
-                        <button onclick="openEditModal('${id}')" title="Edit Date & Time" class="text-xs px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">✏️</button>
-                        ${isCustom ? `<button onclick="deleteCustomTask('${id}')" title="Delete Custom Task" class="text-xs px-2 py-1 rounded bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 transition">✕</button>` : ''}
+                        <button onclick="openEditModal('${id}')" title="Edit Date & Time" class="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-slate-200 transition">✏️</button>
+                        ${isCustom ? `<button onclick="deleteCustomTask('${id}')" title="Delete Custom Task" class="text-xs px-2 py-1 rounded bg-white/10 hover:bg-rose-900/50 text-slate-300 hover:text-rose-300 transition">✕</button>` : ''}
                     </div>
                 </div>`;
             }).join('');
@@ -712,7 +1480,7 @@
             let cells = '';
 
             for (let i = 0; i < firstDay; i++) {
-                cells += `<div class="min-h-[120px] bg-slate-950/40 p-2"></div>`;
+                cells += `<div class="min-h-[120px] bg-slate-950/30 p-2"></div>`;
             }
 
             for (let day = 1; day <= daysInMonth; day++) {
@@ -737,10 +1505,10 @@
                 }).join('');
 
                 cells += `
-                <div class="min-h-[120px] p-2 flex flex-col gap-1.5 ${isToday ? 'bg-indigo-950/20' : 'bg-slate-900/60'}">
+                <div class="min-h-[120px] p-2 flex flex-col gap-1.5 ${isToday ? 'bg-white/10' : 'bg-slate-900/40'}">
                     <div class="flex justify-between items-center">
-                        <span class="text-xs font-bold ${isToday ? 'bg-indigo-600 text-white px-2 py-0.5 rounded-full' : 'text-slate-400'}">${day}</span>
-                        ${dayTasks.length ? `<span class="text-[10px] text-slate-500">${dayTasks.length} due</span>` : ''}
+                        <span class="text-xs font-bold ${isToday ? 'theme-accent-bg text-white px-2 py-0.5 rounded-full' : 'text-slate-300'}">${day}</span>
+                        ${dayTasks.length ? `<span class="text-[10px] text-slate-300">${dayTasks.length} due</span>` : ''}
                     </div>
                     <div class="space-y-1 overflow-y-auto max-h-[105px] custom-scroll">${tasksHtml}</div>
                 </div>`;
@@ -812,6 +1580,8 @@
             renderCalendar(filtered);
         }
 
+        applyTheme();
+        animateCanvas();
         renderAll();
         pullRemoteState();
     </script>

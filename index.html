@@ -19,7 +19,7 @@
                     <span class="text-2xl">📚</span>
                     <h1 class="text-xl font-bold tracking-tight text-white">Homework Command Center</h1>
                 </div>
-                <p class="text-xs text-slate-400 mt-0.5">Last refreshed: November 11, 2026 at 09:07 PM • <span id="sync-status" class="text-slate-500">Local mode</span></p>
+                <p class="text-xs text-slate-400 mt-0.5">Last refreshed: November 12, 2026 at 10:34 AM • <span id="sync-status" class="text-slate-500">Local mode</span></p>
             </div>
 
             <div class="flex items-center gap-2 flex-wrap">
@@ -31,6 +31,9 @@
                         📅 Calendar
                     </button>
                 </div>
+                <button onclick="pullRemoteState()" title="Pull latest changes from cloud" class="px-2.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm transition">
+                    🔄
+                </button>
                 <button onclick="toggleSyncModal(true)" id="sync-btn" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm font-medium transition">
                     ☁️ Cloud Sync
                 </button>
@@ -96,7 +99,7 @@
         </section>
     </main>
 
-    <!-- Custom Task Modal -->
+    <!-- Modal 1: Add Custom Task -->
     <div id="task-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl">
             <h3 class="text-lg font-bold text-white mb-4">Add Custom Assignment</h3>
@@ -109,9 +112,15 @@
                     <label class="text-xs text-slate-400 block mb-1">Assignment Title</label>
                     <input id="custom-title" type="text" placeholder="e.g. Read Scotus pp. 252-282" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
                 </div>
-                <div>
-                    <label class="text-xs text-slate-400 block mb-1">Due Date</label>
-                    <input id="custom-date" type="date" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs text-slate-400 block mb-1">Due Date</label>
+                        <input id="custom-date" type="date" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 block mb-1">Time of Day (Default 10 PM)</label>
+                        <input id="custom-time" type="time" value="22:00" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                    </div>
                 </div>
                 <div>
                     <label class="text-xs text-slate-400 block mb-1">Details / Notes</label>
@@ -125,11 +134,39 @@
         </div>
     </div>
 
-    <!-- Cloud Sync Setup Modal -->
+    <!-- Modal 2: Edit Task Date & Time -->
+    <div id="edit-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl">
+            <h3 class="text-lg font-bold text-white mb-1">✏️ Edit Date & Time</h3>
+            <p id="edit-task-subtitle" class="text-xs text-indigo-400 font-medium mb-4 truncate"></p>
+            <input type="hidden" id="edit-task-id">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs text-slate-400 block mb-1">New Date</label>
+                    <input id="edit-date-input" type="date" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 block mb-1">Time of Day</label>
+                    <input id="edit-time-input" type="time" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                </div>
+            </div>
+            <div class="flex items-center justify-between mt-6">
+                <button onclick="resetTaskSchedule()" class="text-xs text-slate-400 hover:text-rose-400 underline">
+                    Reset to default rule
+                </button>
+                <div class="flex gap-2">
+                    <button onclick="toggleEditModal(false)" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-sm">Cancel</button>
+                    <button onclick="saveTaskSchedule()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium">Save & Sync</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: Cloud Sync Setup -->
     <div id="sync-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl">
             <h3 class="text-lg font-bold text-white mb-2">☁️ Two-Way Device Sync</h3>
-            <p class="text-xs text-slate-400 mb-4">Paste your GitHub token (<code>ghp_...</code>) once on each device to sync checked boxes between your phone and laptop. Stored privately in your browser only.</p>
+            <p class="text-xs text-slate-400 mb-4">Paste your GitHub token (<code>ghp_...</code>) once on each device to sync checked boxes, custom tasks, and date/time edits between your phone and laptop.</p>
             <div>
                 <label class="text-xs text-slate-400 block mb-1">GitHub Personal Access Token</label>
                 <input id="github-token-input" type="password" placeholder="ghp_..." class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
@@ -142,11 +179,12 @@
     </div>
 
     <script>
-        const BOT_ASSIGNMENTS = [{"course": "Philosophy of God", "title": "Week Twelve - Wednesday 11/11: Concepts of God / Discussion Question 10", "due_date": "2026-11-11", "iso_date": "2026-11-11", "status_or_details": "Read Davies_Concepts of God.pdf; submit Discussion Question 10"}, {"course": "Trinity and Christology", "title": "Class 34 Reading: Infancy Narratives & Mary", "due_date": "2026-11-11", "iso_date": "2026-11-11", "status_or_details": "Pope Benedict XVI, Jesus of Nazareth, Ch. 2; reread Luke 1-4; CCC 484-487"}, {"course": "Elementary Spanish II", "title": "Lecci\u00f3n 8 - Estructura 8.2 Double Object Pronouns", "due_date": "2026-11-11", "iso_date": "2026-11-11", "status_or_details": "Class topic and worksheet on double object pronouns"}, {"course": "Elementary Spanish II", "title": "Lecci\u00f3n 8 - Estructura 8.2 & 8.3 VHL Activities", "due_date": "2026-11-12", "iso_date": "2026-11-12", "status_or_details": "12 activities due on VHL Central (1h 26m estimated)"}, {"course": "Trinity and Christology", "title": "Journal for Class 35", "due_date": "2026-11-12T23:59:00Z", "iso_date": "2026-11-11", "status_or_details": "Submit reading journal on Canvas before Class 35 (Pope Benedict XVI, Jesus of Nazareth, Ch. 3; CCC 488-511)"}, {"course": "Foundations of Ethics", "title": "Reading: Will and Morality", "due_date": "2026-11-12", "iso_date": "2026-11-12", "status_or_details": "John Duns Scotus, Will and Morality, pp. 191\u2013222"}, {"course": "Christian Moral Principles", "title": "Class 23 Reading: Respect Marriage II", "due_date": "2026-11-12", "iso_date": "2026-11-12", "status_or_details": "CCC 2331\u20132400, 2514\u20132533; Donald Asci, 'Applied TOB...'; Mt 5:27\u201332; Mk 10:1\u201312"}, {"course": "Elementary Spanish II", "title": "Lecci\u00f3n 8 - 8.3 Comparisons", "due_date": "2026-11-13", "iso_date": "2026-11-13", "status_or_details": "Class topic on comparisons"}, {"course": "Christian Moral Principles", "title": "THE-115 CCC Assessment Exam 2", "due_date": "2026-11-14T23:59:00Z", "iso_date": "2026-11-11", "status_or_details": "Assessment Exam on Canvas (50 pts)"}, {"course": "Trinity and Christology", "title": "Journal for Class 36", "due_date": "2026-11-15T23:59:00Z", "iso_date": "2026-11-11", "status_or_details": "Submit reading journal on Canvas before Class 36 (Pope Benedict XVI, Jesus of Nazareth, Ch. 4 Epilogue; CCC 512-534)"}, {"course": "Philosophy of God", "title": "Week Thirteen - Monday 11/16: Classical Theism / Simplicity", "due_date": "2026-11-16", "iso_date": "2026-11-16", "status_or_details": "Read Davies_Simplicity.pdf"}, {"course": "Elementary Spanish II", "title": "Lecci\u00f3n 8 - 8.4 Superlatives", "due_date": "2026-11-16", "iso_date": "2026-11-16", "status_or_details": "Class topic on superlatives"}, {"course": "Trinity and Christology", "title": "Journal for Class 37", "due_date": "2026-11-17T23:59:00Z", "iso_date": "2026-11-11", "status_or_details": "Submit reading journal on Canvas before Class 37 (Shorter Summa Ch. 227-230)"}, {"course": "Foundations of Ethics", "title": "Reading: Will and Morality", "due_date": "2026-11-17", "iso_date": "2026-11-17", "status_or_details": "John Duns Scotus, Will and Morality, pp. 252\u2013282"}, {"course": "Christian Moral Principles", "title": "Class 24 Reading: Respect Marriage III", "due_date": "2026-11-17", "iso_date": "2026-11-17", "status_or_details": "CDF, Considerations Regarding Proposals to Give Legal Recognition to Homosexual Unions; Bishop Barron video"}, {"course": "Philosophy of God", "title": "Week Thirteen - Wednesday 11/18: Classical Theism", "due_date": "2026-11-18", "iso_date": "2026-11-18", "status_or_details": "Read Mullins_Classical Theism.pdf"}, {"course": "Elementary Spanish II", "title": "Lecci\u00f3n 8 - Lectura: La feria del ma\u00edz", "due_date": "2026-11-18", "iso_date": "2026-11-18", "status_or_details": "Reading assignment / class discussion"}, {"course": "Foundations of Ethics", "title": "Interpretive Philosophical Essay #2", "due_date": "2026-11-19T08:00:00Z", "iso_date": "2026-11-11", "status_or_details": "Submit Interpretive Philosophical Essay #2 (12.5 pts); Read Scotus, Will and Morality, pp. 283\u2013314"}, {"course": "Trinity and Christology", "title": "Journal for Class 38", "due_date": "2026-11-19T23:59:00Z", "iso_date": "2026-11-11", "status_or_details": "Submit reading journal on Canvas before Class 38 (Shorter Summa Ch. 231-233)"}, {"course": "Christian Moral Principles", "title": "Class 25 Reading: Respect Marriage IV & Complete Catechism Assessment", "due_date": "2026-11-19", "iso_date": "2026-11-19", "status_or_details": "William May, 'Generating Human Life Through New Reproductive Technologies', pp. 81-102; Complete Catechism Assessment"}, {"course": "Philosophy of God", "title": "Week Thirteen - Friday 11/20: Classical Theism / Discussion Question 11", "due_date": "2026-11-20", "iso_date": "2026-11-20", "status_or_details": "Read Feser_Classical Theism.pdf; submit Discussion Question 11"}, {"course": "Elementary Spanish II", "title": "Escritura L8A", "due_date": "2026-11-20", "iso_date": "2026-11-20", "status_or_details": "In class handwritten escritura assignment"}, {"course": "Philosophy of God", "title": "Week Fourteen - Monday 11/23: Leftow on Omnipotence / Discussion Question 12", "due_date": "2026-11-23", "iso_date": "2026-11-23", "status_or_details": "Read Leftow on Aquinas on Omnipotence.pdf; submit Discussion Question 12"}, {"course": "Trinity and Christology", "title": "Class 39 Reading: Christ's Burial & Descent to Hell", "due_date": "2026-11-23", "iso_date": "2026-11-23", "status_or_details": "Shorter Summa Ch. 234-235; Summa Theologiae III Q.49 art. 6"}, {"course": "Elementary Spanish II", "title": "Lecci\u00f3n 8 - Contextos + Cultura: Frutos y verduras de Am\u00e9rica", "due_date": "2026-11-23", "iso_date": "2026-11-23", "status_or_details": "Class topic and reading"}, {"course": "Foundations of Ethics", "title": "Reading: Conscience", "due_date": "2026-11-24", "iso_date": "2026-11-24", "status_or_details": "Joseph Ratzinger, 'Conscience in Time', pp. 17\u201327"}, {"course": "Christian Moral Principles", "title": "Class 26 Reading: Catholic Social Teaching", "due_date": "2026-11-24", "iso_date": "2026-11-24", "status_or_details": "CCC 1928\u20131948, 2401\u20132463, 2534\u20132557; Benedict XVI address"}];
+        const BOT_ASSIGNMENTS = [{"course": "Philosophy of God", "title": "Week Twelve - Wednesday 11/11: Concepts of God / Discussion Question 10", "due_date": "2026-11-11", "iso_date": "2026-11-11", "time_24": "22:00", "status_or_details": "Read Davies_Concepts of God.pdf; submit Discussion Question 10"}, {"course": "Trinity and Christology", "title": "Class 34 Reading: Infancy Narratives & Mary", "due_date": "2026-11-11", "iso_date": "2026-11-11", "time_24": "22:00", "status_or_details": "Pope Benedict XVI, Jesus of Nazareth, Ch. 2; reread Luke 1-4; CCC 484-487"}, {"course": "Elementary Spanish II", "title": "Lecci\u00f3n 8 - Estructura 8.2 Double Object Pronouns", "due_date": "2026-11-11", "iso_date": "2026-11-10", "time_24": "22:00", "status_or_details": "Class topic and worksheet on double object pronouns (Night-before rule \u2022 Listed: 2026-11-11)"}, {"course": "Elementary Spanish II", "title": "Lecci\u00f3n 8 - Estructura 8.2 & 8.3 VHL Activities", "due_date": "2026-11-12", "iso_date": "2026-11-11", "time_24": "22:00", "status_or_details": "12 activities due on VHL Central (1h 26m estimated) (Night-before rule \u2022 Listed: 2026-11-12)"}, {"course": "Trinity and Christology", "title": "Journal for Class 35", "due_date": "2026-11-12T23:59:00Z", "iso_date": "2026-11-12", "time_24": "22:00", "status_or_details": "Submit reading journal on Canvas before Class 35 (Pope Benedict XVI, Jesus of Nazareth, Ch. 3; CCC 488-511)"}, {"course": "Foundations of Ethics", "title": "Reading: Will and Morality", "due_date": "2026-11-12", "iso_date": "2026-11-11", "time_24": "22:00", "status_or_details": "John Duns Scotus, Will and Morality, pp. 191\u2013222 (Night-before rule \u2022 Listed: 2026-11-12)"}, {"course": "Christian Moral Principles", "title": "Class 23 Reading: Respect Marriage II", "due_date": "2026-11-12", "iso_date": "2026-11-12", "time_24": "22:00", "status_or_details": "CCC 2331\u20132400, 2514\u20132533; Donald Asci, 'Applied TOB...'; Mt 5:27\u201332; Mk 10:1\u201312"}, {"course": "Elementary Spanish II", "title": "Lecci\u00f3n 8 - 8.3 Comparisons", "due_date": "2026-11-13", "iso_date": "2026-11-12", "time_24": "22:00", "status_or_details": "Class topic on comparisons (Night-before rule \u2022 Listed: 2026-11-13)"}, {"course": "Christian Moral Principles", "title": "THE-115 CCC Assessment Exam 2", "due_date": "2026-11-14T23:59:00Z", "iso_date": "2026-11-12", "time_24": "22:00", "status_or_details": "Assessment Exam on Canvas (50 pts)"}, {"course": "Trinity and Christology", "title": "Journal for Class 36", "due_date": "2026-11-15T23:59:00Z", "iso_date": "2026-11-12", "time_24": "22:00", "status_or_details": "Submit reading journal on Canvas before Class 36 (Pope Benedict XVI, Jesus of Nazareth, Ch. 4 Epilogue; CCC 512-534)"}, {"course": "Philosophy of God", "title": "Week Thirteen - Monday 11/16: Classical Theism / Simplicity", "due_date": "2026-11-16", "iso_date": "2026-11-16", "time_24": "22:00", "status_or_details": "Read Davies_Simplicity.pdf"}, {"course": "Elementary Spanish II", "title": "Lecci\u00f3n 8 - 8.4 Superlatives", "due_date": "2026-11-16", "iso_date": "2026-11-15", "time_24": "22:00", "status_or_details": "Class topic on superlatives (Night-before rule \u2022 Listed: 2026-11-16)"}, {"course": "Trinity and Christology", "title": "Journal for Class 37", "due_date": "2026-11-17T23:59:00Z", "iso_date": "2026-11-12", "time_24": "22:00", "status_or_details": "Submit reading journal on Canvas before Class 37 (Shorter Summa Ch. 227-230)"}, {"course": "Foundations of Ethics", "title": "Reading: Will and Morality", "due_date": "2026-11-17", "iso_date": "2026-11-16", "time_24": "22:00", "status_or_details": "John Duns Scotus, Will and Morality, pp. 252\u2013282 (Night-before rule \u2022 Listed: 2026-11-17)"}, {"course": "Christian Moral Principles", "title": "Class 24 Reading: Respect Marriage III", "due_date": "2026-11-17", "iso_date": "2026-11-17", "time_24": "22:00", "status_or_details": "CDF, Considerations Regarding Proposals to Give Legal Recognition to Homosexual Unions; Bishop Barron video"}, {"course": "Philosophy of God", "title": "Week Thirteen - Wednesday 11/18: Classical Theism", "due_date": "2026-11-18", "iso_date": "2026-11-18", "time_24": "22:00", "status_or_details": "Read Mullins_Classical Theism.pdf"}, {"course": "Elementary Spanish II", "title": "Lecci\u00f3n 8 - Lectura: La feria del ma\u00edz", "due_date": "2026-11-18", "iso_date": "2026-11-17", "time_24": "22:00", "status_or_details": "Reading assignment / class discussion (Night-before rule \u2022 Listed: 2026-11-18)"}, {"course": "Foundations of Ethics", "title": "Interpretive Philosophical Essay #2", "due_date": "2026-11-19T08:00:00Z", "iso_date": "2026-11-11", "time_24": "22:00", "status_or_details": "Submit Interpretive Philosophical Essay #2 (12.5 pts); Read Scotus, Will and Morality, pp. 283\u2013314 (Night-before rule \u2022 Listed: 2026-11-19T08:00:00Z)"}, {"course": "Trinity and Christology", "title": "Journal for Class 38", "due_date": "2026-11-19T23:59:00Z", "iso_date": "2026-11-12", "time_24": "22:00", "status_or_details": "Submit reading journal on Canvas before Class 38 (Shorter Summa Ch. 231-233)"}, {"course": "Christian Moral Principles", "title": "Class 25 Reading: Respect Marriage IV & Complete Catechism Assessment", "due_date": "2026-11-19", "iso_date": "2026-11-19", "time_24": "22:00", "status_or_details": "William May, 'Generating Human Life Through New Reproductive Technologies', pp. 81-102; Complete Catechism Assessment"}, {"course": "Philosophy of God", "title": "Week Thirteen - Friday 11/20: Classical Theism / Discussion Question 11", "due_date": "2026-11-20", "iso_date": "2026-11-20", "time_24": "22:00", "status_or_details": "Read Feser_Classical Theism.pdf; submit Discussion Question 11"}, {"course": "Elementary Spanish II", "title": "Escritura L8A", "due_date": "2026-11-20", "iso_date": "2026-11-19", "time_24": "22:00", "status_or_details": "In class handwritten escritura assignment (Night-before rule \u2022 Listed: 2026-11-20)"}, {"course": "Philosophy of God", "title": "Week Fourteen - Monday 11/23: Leftow on Omnipotence / Discussion Question 12", "due_date": "2026-11-23", "iso_date": "2026-11-23", "time_24": "22:00", "status_or_details": "Read Leftow on Aquinas on Omnipotence.pdf; submit Discussion Question 12"}, {"course": "Trinity and Christology", "title": "Class 39 Reading: Christ's Burial & Descent to Hell", "due_date": "2026-11-23", "iso_date": "2026-11-23", "time_24": "22:00", "status_or_details": "Shorter Summa Ch. 234-235; Summa Theologiae III Q.49 art. 6"}, {"course": "Elementary Spanish II", "title": "Lecci\u00f3n 8 - Contextos + Cultura: Frutos y verduras de Am\u00e9rica", "due_date": "2026-11-23", "iso_date": "2026-11-22", "time_24": "22:00", "status_or_details": "Class topic and reading (Night-before rule \u2022 Listed: 2026-11-23)"}, {"course": "Foundations of Ethics", "title": "Reading: Conscience", "due_date": "2026-11-24", "iso_date": "2026-11-23", "time_24": "22:00", "status_or_details": "Joseph Ratzinger, 'Conscience in Time', pp. 17\u201327 (Night-before rule \u2022 Listed: 2026-11-24)"}, {"course": "Christian Moral Principles", "title": "Class 26 Reading: Catholic Social Teaching", "due_date": "2026-11-24", "iso_date": "2026-11-24", "time_24": "22:00", "status_or_details": "CCC 1928\u20131948, 2401\u20132463, 2534\u20132557; Benedict XVI address"}];
         const GH_USER = "DominatorDomPro";
         const GH_REPO = "homework-hub";
 
         let completedIds = JSON.parse(localStorage.getItem('hw_completed_ids') || '{}');
+        let taskOverrides = JSON.parse(localStorage.getItem('hw_task_overrides') || '{}');
         let customTasks = JSON.parse(localStorage.getItem('hw_custom_tasks') || '[]');
         let activeCourse = 'ALL';
         let currentView = 'checklist';
@@ -173,32 +211,84 @@
             return courseColorMap[courseName];
         }
 
-        function getTaskId(item) {
-            // Normalize title slightly so minor punctuation tweaks keep checkboxes intact
-            const cleanTitle = item.title.toLowerCase().replace(/[^a-z0-9]/g, '');
-            return encodeURIComponent(item.course + '__' + cleanTitle + '__' + item.iso_date);
+        function getBaseTaskId(item) {
+            if (item._id) return item._id;
+            const cleanTitle = (item.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const origDate = item._orig_iso_date || item.iso_date || '';
+            return encodeURIComponent(item.course + '__' + cleanTitle + '__' + origDate);
+        }
+
+        function formatTime12h(time24) {
+            const t = time24 && time24.includes(':') ? time24 : '22:00';
+            const [hStr, mStr] = t.split(':');
+            let h = parseInt(hStr, 10);
+            if (isNaN(h)) return '10:00 PM';
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12 || 12;
+            return `${h}:${mStr} ${ampm}`;
+        }
+
+        function formatShortDate(isoDate) {
+            if (!isoDate) return 'No Date';
+            const d = new Date(isoDate + 'T00:00:00');
+            if (isNaN(d.getTime())) return isoDate;
+            return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
         }
 
         function getAllAssignments() {
-            return [...BOT_ASSIGNMENTS, ...customTasks].sort((a, b) => (a.iso_date || '9999').localeCompare(b.iso_date || '9999'));
+            const merged = [...BOT_ASSIGNMENTS, ...customTasks].map(raw => {
+                const copy = { ...raw };
+                copy._orig_iso_date = raw._orig_iso_date || raw.iso_date;
+                copy._orig_time_24 = raw._orig_time_24 !== undefined ? raw._orig_time_24 : (raw.time_24 || '22:00');
+                copy.time_24 = copy.time_24 || '22:00';
+                const id = getBaseTaskId(copy);
+                copy._id = id;
+
+                if (taskOverrides[id]) {
+                    if (taskOverrides[id].iso_date) copy.iso_date = taskOverrides[id].iso_date;
+                    if (taskOverrides[id].time_24) copy.time_24 = taskOverrides[id].time_24;
+                    copy._is_edited = true;
+                }
+                return copy;
+            });
+
+            return merged.sort((a, b) => {
+                const dateCmp = (a.iso_date || '9999').localeCompare(b.iso_date || '9999');
+                if (dateCmp !== 0) return dateCmp;
+                return (a.time_24 || '22:00').localeCompare(b.time_24 || '22:00');
+            });
         }
 
-        // --- TWO-WAY CLOUD SYNC FUNCTIONS ---
+        // --- TWO-WAY CLOUD SYNC (Checkboxes + Date/Time Edits + Custom Tasks) ---
         function setSyncStatus(text, colorClass) {
             const el = document.getElementById('sync-status');
             el.textContent = text;
             el.className = colorClass;
         }
 
-        async function pullRemoteCompleted() {
+        async function pullRemoteState() {
             if (!GH_USER || GH_USER === 'YOUR_GITHUB_USERNAME') return;
             try {
                 const url = `https://raw.githubusercontent.com/${GH_USER}/${GH_REPO}/main/completed.json?t=${Date.now()}`;
                 const res = await fetch(url);
                 if (res.ok) {
                     const remoteData = await res.json();
-                    completedIds = { ...completedIds, ...remoteData };
+                    if (remoteData && (remoteData._version === 2 || remoteData.completed || remoteData.overrides)) {
+                        completedIds = { ...completedIds, ...(remoteData.completed || {}) };
+                        taskOverrides = { ...taskOverrides, ...(remoteData.overrides || {}) };
+                        if (Array.isArray(remoteData.customTasks) && remoteData.customTasks.length > 0) {
+                            const byId = {};
+                            [...customTasks, ...remoteData.customTasks].forEach(t => {
+                                byId[getBaseTaskId(t)] = t;
+                            });
+                            customTasks = Object.values(byId);
+                        }
+                    } else {
+                        completedIds = { ...completedIds, ...remoteData };
+                    }
                     localStorage.setItem('hw_completed_ids', JSON.stringify(completedIds));
+                    localStorage.setItem('hw_task_overrides', JSON.stringify(taskOverrides));
+                    localStorage.setItem('hw_custom_tasks', JSON.stringify(customTasks));
                     setSyncStatus('☁️ Cloud synced', 'text-emerald-400');
                     renderAll();
                 }
@@ -207,7 +297,7 @@
             }
         }
 
-        async function pushRemoteCompleted() {
+        async function pushRemoteState() {
             const token = localStorage.getItem('hw_gh_token');
             if (!token || !GH_USER || GH_USER === 'YOUR_GITHUB_USERNAME') return;
 
@@ -227,9 +317,16 @@
                     sha = fileInfo.sha;
                 }
 
-                const contentB64 = btoa(unescape(encodeURIComponent(JSON.stringify(completedIds, null, 2))));
+                const payloadObj = {
+                    _version: 2,
+                    completed: completedIds,
+                    overrides: taskOverrides,
+                    customTasks: customTasks
+                };
+
+                const contentB64 = btoa(unescape(encodeURIComponent(JSON.stringify(payloadObj, null, 2))));
                 const body = {
-                    message: 'Sync completed checkboxes',
+                    message: 'Sync homework state (checkboxes & schedule edits)',
                     content: contentB64,
                     branch: 'main'
                 };
@@ -264,7 +361,7 @@
             const val = document.getElementById('github-token-input').value.trim();
             if (val) {
                 localStorage.setItem('hw_gh_token', val);
-                pushRemoteCompleted();
+                pushRemoteState();
             } else {
                 localStorage.removeItem('hw_gh_token');
                 setSyncStatus('Local mode', 'text-slate-500');
@@ -280,13 +377,62 @@
             }
             localStorage.setItem('hw_completed_ids', JSON.stringify(completedIds));
             renderAll();
-            pushRemoteCompleted();
+            pushRemoteState();
         }
 
-        function deleteCustomTask(index) {
-            customTasks.splice(index, 1);
-            localStorage.setItem('hw_custom_tasks', JSON.stringify(customTasks));
+        // --- EDIT DATE & TIME FUNCTIONS ---
+        function openEditModal(taskId) {
+            const allItems = getAllAssignments();
+            const item = allItems.find(i => i._id === taskId);
+            if (!item) return;
+
+            document.getElementById('edit-task-id').value = taskId;
+            document.getElementById('edit-task-subtitle').textContent = `${item.course} — ${item.title}`;
+            document.getElementById('edit-date-input').value = item.iso_date || '';
+            document.getElementById('edit-time-input').value = item.time_24 || '22:00';
+            toggleEditModal(true);
+        }
+
+        function toggleEditModal(show) {
+            const modal = document.getElementById('edit-modal');
+            modal.classList.toggle('hidden', !show);
+            modal.classList.toggle('flex', show);
+        }
+
+        function saveTaskSchedule() {
+            const taskId = document.getElementById('edit-task-id').value;
+            const newDate = document.getElementById('edit-date-input').value;
+            const newTime = document.getElementById('edit-time-input').value || '22:00';
+            if (!taskId || !newDate) return;
+
+            taskOverrides[taskId] = {
+                iso_date: newDate,
+                time_24: newTime
+            };
+            localStorage.setItem('hw_task_overrides', JSON.stringify(taskOverrides));
+            toggleEditModal(false);
             renderAll();
+            pushRemoteState();
+        }
+
+        function resetTaskSchedule() {
+            const taskId = document.getElementById('edit-task-id').value;
+            if (taskId && taskOverrides[taskId]) {
+                delete taskOverrides[taskId];
+                localStorage.setItem('hw_task_overrides', JSON.stringify(taskOverrides));
+            }
+            toggleEditModal(false);
+            renderAll();
+            pushRemoteState();
+        }
+
+        function deleteCustomTask(taskId) {
+            customTasks = customTasks.filter(t => getBaseTaskId(t) !== taskId);
+            delete taskOverrides[taskId];
+            localStorage.setItem('hw_custom_tasks', JSON.stringify(customTasks));
+            localStorage.setItem('hw_task_overrides', JSON.stringify(taskOverrides));
+            renderAll();
+            pushRemoteState();
         }
 
         function switchView(view) {
@@ -324,7 +470,7 @@
 
         function renderStats(allItems) {
             const total = allItems.length;
-            const doneCount = allItems.filter(i => completedIds[getTaskId(i)]).length;
+            const doneCount = allItems.filter(i => completedIds[i._id]).length;
             const pct = total ? Math.round((doneCount / total) * 100) : 0;
 
             document.getElementById('progress-text').textContent = `${doneCount} / ${total} Completed (${pct}%)`;
@@ -335,7 +481,7 @@
             now.setHours(0,0,0,0);
             const twoDays = new Date(now.getTime() + 2 * 86400000);
             const soonCount = allItems.filter(i => {
-                if (completedIds[getTaskId(i)] || !i.iso_date) return false;
+                if (completedIds[i._id] || !i.iso_date) return false;
                 const d = new Date(i.iso_date + 'T00:00:00');
                 return d >= now && d <= twoDays;
             }).length;
@@ -350,10 +496,12 @@
             }
 
             container.innerHTML = items.map(item => {
-                const id = getTaskId(item);
+                const id = item._id;
                 const isDone = !!completedIds[id];
                 const badgeStyle = getCourseStyle(item.course);
-                const customIdx = customTasks.indexOf(item);
+                const isCustom = customTasks.some(t => getBaseTaskId(t) === id);
+                const readableDate = formatShortDate(item.iso_date);
+                const readableTime = formatTime12h(item.time_24);
 
                 return `
                 <div class="bg-slate-900 border ${isDone ? 'border-slate-800/50 opacity-60' : 'border-slate-800 hover:border-slate-700'} rounded-xl p-4 flex items-start gap-4 transition">
@@ -362,12 +510,20 @@
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center flex-wrap gap-2 mb-1">
                             <span class="px-2.5 py-0.5 rounded-full text-xs font-medium border ${badgeStyle}">${item.course}</span>
-                            <span class="text-xs font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">📅 ${item.due_date}</span>
+                            <button onclick="openEditModal('${id}')" title="Click to change date or time"
+                                class="text-xs font-medium text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2.5 py-0.5 rounded flex items-center gap-1.5 transition">
+                                <span>📅 ${readableDate}</span>
+                                <span class="text-indigo-300">• ⏰ ${readableTime}</span>
+                                ${item._is_edited ? `<span class="text-[10px] text-emerald-400">(edited)</span>` : ''}
+                            </button>
                         </div>
                         <h3 class="text-base font-semibold ${isDone ? 'line-through text-slate-500' : 'text-white'}">${item.title}</h3>
                         <p class="text-xs text-slate-400 mt-1">${item.status_or_details || ''}</p>
                     </div>
-                    ${customIdx > -1 ? `<button onclick="deleteCustomTask(${customIdx})" class="text-xs text-slate-500 hover:text-rose-400">✕</button>` : ''}
+                    <div class="flex items-center gap-2">
+                        <button onclick="openEditModal('${id}')" title="Edit Date & Time" class="text-xs px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">✏️</button>
+                        ${isCustom ? `<button onclick="deleteCustomTask('${id}')" title="Delete Custom Task" class="text-xs px-2 py-1 rounded bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 transition">✕</button>` : ''}
+                    </div>
                 </div>`;
             }).join('');
         }
@@ -393,14 +549,18 @@
                 const isToday = iso === todayIso;
 
                 const tasksHtml = dayTasks.map(t => {
-                    const id = getTaskId(t);
+                    const id = t._id;
                     const isDone = !!completedIds[id];
                     const badgeStyle = getCourseStyle(t.course);
+                    const readableTime = formatTime12h(t.time_24);
                     return `
-                    <div onclick="toggleComplete('${id}')" title="${t.course}: ${t.title} (${t.status_or_details})"
-                        class="text-[11px] leading-tight p-1.5 rounded border cursor-pointer transition ${badgeStyle} ${isDone ? 'line-through opacity-40' : 'hover:brightness-125'}">
-                        <div class="font-bold truncate">${t.course}</div>
-                        <div class="truncate">${t.title}</div>
+                    <div class="text-[11px] leading-tight p-1.5 rounded border transition ${badgeStyle} ${isDone ? 'line-through opacity-40' : ''}">
+                        <div class="flex items-center justify-between gap-1">
+                            <span onclick="toggleComplete('${id}')" class="font-bold truncate cursor-pointer flex-1">${t.course}</span>
+                            <button onclick="openEditModal('${id}')" title="Reschedule" class="text-[10px] opacity-70 hover:opacity-100">✏️</button>
+                        </div>
+                        <div onclick="openEditModal('${id}')" class="text-[10px] font-semibold text-amber-300 cursor-pointer">⏰ ${readableTime}</div>
+                        <div onclick="toggleComplete('${id}')" class="truncate cursor-pointer">${t.title}</div>
                     </div>`;
                 }).join('');
 
@@ -410,7 +570,7 @@
                         <span class="text-xs font-bold ${isToday ? 'bg-indigo-600 text-white px-2 py-0.5 rounded-full' : 'text-slate-400'}">${day}</span>
                         ${dayTasks.length ? `<span class="text-[10px] text-slate-500">${dayTasks.length} due</span>` : ''}
                     </div>
-                    <div class="space-y-1 overflow-y-auto max-h-[95px] custom-scroll">${tasksHtml}</div>
+                    <div class="space-y-1 overflow-y-auto max-h-[105px] custom-scroll">${tasksHtml}</div>
                 </div>`;
             }
 
@@ -440,20 +600,28 @@
         function addCustomTask() {
             const course = document.getElementById('custom-course').value.trim() || 'Personal';
             const title = document.getElementById('custom-title').value.trim();
-            const iso_date = document.getElementById('custom-date').value;
+            const iso_date = document.getElementById('custom-date').value || new Date().toISOString().slice(0, 10);
+            const time_24 = document.getElementById('custom-time').value || '22:00';
             const status_or_details = document.getElementById('custom-details').value.trim();
             if (!title) return;
 
-            customTasks.push({
+            const newTask = {
                 course,
                 title,
-                iso_date: iso_date || new Date().toISOString().slice(0, 10),
-                due_date: iso_date || 'Custom Date',
+                iso_date,
+                _orig_iso_date: iso_date,
+                time_24,
+                _orig_time_24: time_24,
+                due_date: iso_date,
                 status_or_details
-            });
+            };
+            newTask._id = getBaseTaskId(newTask);
+
+            customTasks.push(newTask);
             localStorage.setItem('hw_custom_tasks', JSON.stringify(customTasks));
             toggleModal(false);
             renderAll();
+            pushRemoteState();
         }
 
         function renderAll() {
@@ -464,7 +632,7 @@
             const hideDone = document.getElementById('hide-completed').checked;
             const filtered = allItems.filter(item => {
                 if (activeCourse !== 'ALL' && item.course !== activeCourse) return false;
-                if (hideDone && completedIds[getTaskId(item)]) return false;
+                if (hideDone && completedIds[item._id]) return false;
                 return true;
             });
 
@@ -473,7 +641,7 @@
         }
 
         renderAll();
-        pullRemoteCompleted();
+        pullRemoteState();
     </script>
 </body>
 </html>

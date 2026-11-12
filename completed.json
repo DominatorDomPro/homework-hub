@@ -61,6 +61,6 @@
       "skipExamsEssays": true
     }
   },
-  "globalDefaultTime": "22:00",
+  "globalDefaultTime": "00:00",
   "customTasks": []
 }

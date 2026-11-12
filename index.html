@@ -19,27 +19,18 @@
                     <span class="text-2xl">📚</span>
                     <h1 class="text-xl font-bold tracking-tight text-white">Homework Command Center</h1>
                 </div>
-                <p class="text-xs text-slate-400 mt-0.5">Last refreshed: November 12, 2026 at 10:43 AM • <span id="sync-status" class="text-slate-500">Local mode</span></p>
+                <p class="text-xs text-slate-400 mt-0.5">Last refreshed: November 12, 2026 at 11:05 AM • <span id="sync-status" class="text-slate-500">Local mode</span></p>
             </div>
 
             <div class="flex items-center gap-2 flex-wrap">
                 <div class="bg-slate-800 p-1 rounded-lg flex items-center text-sm font-medium">
-                    <button id="tab-checklist" onclick="switchView('checklist')" class="px-3 py-1.5 rounded-md bg-indigo-600 text-white shadow transition">
-                        ✓ Checklist
-                    </button>
-                    <button id="tab-calendar" onclick="switchView('calendar')" class="px-3 py-1.5 rounded-md text-slate-400 hover:text-white transition">
-                        📅 Calendar
-                    </button>
+                    <button id="tab-checklist" onclick="switchView('checklist')" class="px-3 py-1.5 rounded-md bg-indigo-600 text-white shadow transition">✓ Checklist</button>
+                    <button id="tab-calendar" onclick="switchView('calendar')" class="px-3 py-1.5 rounded-md text-slate-400 hover:text-white transition">📅 Calendar</button>
                 </div>
-                <button onclick="pullRemoteState()" title="Pull latest changes from cloud" class="px-2.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm transition">
-                    🔄
-                </button>
-                <button onclick="toggleSyncModal(true)" id="sync-btn" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm font-medium transition">
-                    ☁️ Cloud Sync
-                </button>
-                <button onclick="toggleModal(true)" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition shadow">
-                    + Add Task
-                </button>
+                <button onclick="pullRemoteState()" title="Pull latest changes from cloud" class="px-2.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm transition">🔄</button>
+                <button onclick="openRulesModal()" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm font-medium transition">⚙️ Course Rules</button>
+                <button onclick="toggleSyncModal(true)" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm font-medium transition">☁️ Cloud Sync</button>
+                <button onclick="toggleModal(true)" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition shadow">+ Add Task</button>
             </div>
         </div>
     </header>
@@ -118,7 +109,7 @@
                         <input id="custom-date" type="date" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
                     </div>
                     <div>
-                        <label class="text-xs text-slate-400 block mb-1">Time of Day (Default 10 PM)</label>
+                        <label class="text-xs text-slate-400 block mb-1">Time of Day</label>
                         <input id="custom-time" type="time" value="22:00" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
                     </div>
                 </div>
@@ -134,10 +125,10 @@
         </div>
     </div>
 
-    <!-- Modal 2: Edit Task Date & Time -->
+    <!-- Modal 2: Edit Single Task Date & Time -->
     <div id="edit-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl">
-            <h3 class="text-lg font-bold text-white mb-1">✏️ Edit Date & Time</h3>
+            <h3 class="text-lg font-bold text-white mb-1">✏️ Edit Task Date & Time</h3>
             <p id="edit-task-subtitle" class="text-xs text-indigo-400 font-medium mb-4 truncate"></p>
             <input type="hidden" id="edit-task-id">
             <div class="grid grid-cols-2 gap-3">
@@ -151,9 +142,7 @@
                 </div>
             </div>
             <div class="flex items-center justify-between mt-6">
-                <button onclick="resetTaskSchedule()" class="text-xs text-slate-400 hover:text-rose-400 underline">
-                    Reset to default rule
-                </button>
+                <button onclick="resetTaskSchedule()" class="text-xs text-slate-400 hover:text-rose-400 underline">Reset to course rule</button>
                 <div class="flex gap-2">
                     <button onclick="toggleEditModal(false)" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-sm">Cancel</button>
                     <button onclick="saveTaskSchedule()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium">Save & Sync</button>
@@ -162,11 +151,40 @@
         </div>
     </div>
 
-    <!-- Modal 3: Cloud Sync Setup -->
+    <!-- Modal 3: Course Schedule Rules Interface -->
+    <div id="rules-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-2xl w-full p-6 shadow-2xl max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-lg font-bold text-white">⚙️ Course Default Schedule Rules</h3>
+                <button onclick="toggleRulesModal(false)" class="text-slate-400 hover:text-white text-sm">✕</button>
+            </div>
+            <p class="text-xs text-slate-400 mb-4">Adjust date shifts (such as due the night before) and default due times for each class. Syncs across your laptop and phone.</p>
+
+            <div class="bg-slate-950 border border-slate-800 rounded-lg p-3.5 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                    <div class="text-sm font-semibold text-white">Global Fallback Due Time</div>
+                    <div class="text-xs text-slate-400">Used when an assignment has no time listed on Canvas/Syllabus</div>
+                </div>
+                <input id="global-default-time-input" type="time" value="22:00" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white">
+            </div>
+
+            <div id="course-rules-list" class="space-y-3 overflow-y-auto pr-1 custom-scroll flex-1"></div>
+
+            <div class="flex items-center justify-between pt-4 mt-4 border-t border-slate-800">
+                <button onclick="resetAllCourseRules()" class="text-xs text-slate-400 hover:text-rose-400 underline">Reset all to preset defaults</button>
+                <div class="flex gap-2">
+                    <button onclick="toggleRulesModal(false)" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-sm">Cancel</button>
+                    <button onclick="saveRulesFromModal()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium">Save & Sync Rules</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 4: Cloud Sync Setup -->
     <div id="sync-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl">
             <h3 class="text-lg font-bold text-white mb-2">☁️ Two-Way Device Sync</h3>
-            <p class="text-xs text-slate-400 mb-4">Paste your GitHub token (<code>ghp_...</code>) once on each device to sync checked boxes, custom tasks, and date/time edits between your phone and laptop.</p>
+            <p class="text-xs text-slate-400 mb-4">Paste your GitHub token (<code>ghp_...</code>) once on each device to sync checked boxes, course rules, custom tasks, and date/time edits between your phone and laptop.</p>
             <div>
                 <label class="text-xs text-slate-400 block mb-1">GitHub Personal Access Token</label>
                 <input id="github-token-input" type="password" placeholder="ghp_..." class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
@@ -179,13 +197,16 @@
     </div>
 
     <script>
-        const BOT_ASSIGNMENTS = [{"course": "Elementary Spanish II", "title": "Lecci\u00f3n 8", "due_date": "Estructura 8.2 & Estructura 8.3", "iso_date": "2026-11-12", "time_24": "22:00", "status_or_details": "2026-11-12"}, {"course": "Foundations of Ethics", "title": "Reading: Scotus, Will and Morality (pp. 191\u2013222)", "due_date": "2026-11-12", "iso_date": "2026-11-11", "time_24": "22:00", "status_or_details": "Class reading assignment (Night-before rule \u2022 Listed: 2026-11-12)"}, {"course": "Christian Moral Principles", "title": "Class 23 Reading: Respect Marriage II (6th and 9th Commandments)", "due_date": "2026-11-12", "iso_date": "2026-11-12", "time_24": "22:00", "status_or_details": "CCC 2331\u20132400, 2514\u201333; Donald Asci article; Mt 5:27\u201332; Mk 10:1\u201312"}, {"course": "Trinity and Christology", "title": "Journal for Class 35", "due_date": "2026-11-12T23:59:00Z", "iso_date": "2026-11-12", "time_24": "22:00", "status_or_details": "Reading: Pope Benedict XVI, Jesus of Nazareth, Chapter 3; CCC 488-511 (10 pts)"}, {"course": "Elementary Spanish II", "title": "Class Topic: 8.3 Comparisons", "due_date": "2026-11-13", "iso_date": "2026-11-13", "time_24": "22:00", "status_or_details": "Class preparation and practice"}, {"course": "Christian Moral Principles", "title": "THE-115 CCC Assessment Exam 2", "due_date": "2026-11-14T23:59:00Z", "iso_date": "2026-11-12", "time_24": "22:00", "status_or_details": "50 points assessment exam on Canvas"}, {"course": "Elementary Spanish II", "title": "VHL Central Homework (Nov 15)", "due_date": "2026-11-15", "iso_date": "2026-11-15", "time_24": "22:00", "status_or_details": "11 activities on VHL Central (Estimated time: 1h 18m)"}, {"course": "Trinity and Christology", "title": "Journal for Class 36", "due_date": "2026-11-15T23:59:00Z", "iso_date": "2026-11-12", "time_24": "22:00", "status_or_details": "Reading: Pope Benedict XVI, Jesus of Nazareth, Chapter 4 Epilogue; CCC 512-534 (10 pts)"}, {"course": "Elementary Spanish II", "title": "Class Topic: 8.4 Superlatives", "due_date": "2026-11-16", "iso_date": "2026-11-16", "time_24": "22:00", "status_or_details": "Class preparation"}, {"course": "Philosophy of God", "title": "Reading: Davies_Simplicity.pdf", "due_date": "2026-11-16", "iso_date": "2026-11-16", "time_24": "22:00", "status_or_details": "Week Thirteen - Classical Theism reading assignment"}, {"course": "Elementary Spanish II", "title": "VHL Central Homework (Nov 17)", "due_date": "2026-11-17", "iso_date": "2026-11-17", "time_24": "22:00", "status_or_details": "13 activities on VHL Central (Estimated time: 1h 15m)"}, {"course": "Foundations of Ethics", "title": "Reading: Scotus, Will and Morality (pp. 252\u2013282)", "due_date": "2026-11-17", "iso_date": "2026-11-16", "time_24": "22:00", "status_or_details": "Class reading assignment (Night-before rule \u2022 Listed: 2026-11-17)"}, {"course": "Christian Moral Principles", "title": "Class 24 Reading: Respect Marriage III (6th and 9th Commandments)", "due_date": "2026-11-17", "iso_date": "2026-11-17", "time_24": "22:00", "status_or_details": "CDF Considerations Regarding Proposals to Give Legal Recognition to Homosexual Unions (2003); Bishop Barron video"}, {"course": "Trinity and Christology", "title": "Journal for Class 37", "due_date": "2026-11-17T23:59:00Z", "iso_date": "2026-11-12", "time_24": "22:00", "status_or_details": "Reading: Shorter Summa Ch. 227-230 (10 pts)"}, {"course": "Elementary Spanish II", "title": "Reading: Lectura: La feria del ma\u00edz", "due_date": "2026-11-18", "iso_date": "2026-11-18", "time_24": "22:00", "status_or_details": "Class preparation"}, {"course": "Philosophy of God", "title": "Reading: Mullins_Classical Theism.pdf", "due_date": "2026-11-18", "iso_date": "2026-11-18", "time_24": "22:00", "status_or_details": "Week Thirteen - Classical Theism reading assignment"}, {"course": "Foundations of Ethics", "title": "Interpretive Philosophical Essay # 2", "due_date": "2026-11-19T08:00:00Z", "iso_date": "2026-11-11", "time_24": "22:00", "status_or_details": "Reading: Scotus, Will and Morality (pp. 283\u2013314); Interpretive Essay #2 due (12.5 pts) (Night-before rule \u2022 Listed: 2026-11-19T08:00:00Z)"}, {"course": "Elementary Spanish II", "title": "VHL Central Homework (Nov 19)", "due_date": "2026-11-19", "iso_date": "2026-11-19", "time_24": "22:00", "status_or_details": "3 activities on VHL Central (Estimated time: 1h 2m)"}, {"course": "Christian Moral Principles", "title": "Class 25 Reading: Respect Marriage IV (6th and 9th Commandments)", "due_date": "2026-11-19", "iso_date": "2026-11-19", "time_24": "22:00", "status_or_details": "William May, 'Generating Human Life Through New Reproductive Technologies,' pp. 81-102; Complete Catechism Assessment"}, {"course": "Trinity and Christology", "title": "Journal for Class 38", "due_date": "2026-11-19T23:59:00Z", "iso_date": "2026-11-12", "time_24": "22:00", "status_or_details": "Reading: Shorter Summa Ch. 231-233 (10 pts)"}, {"course": "Elementary Spanish II", "title": "Escritura L8A", "due_date": "2026-11-20", "iso_date": "2026-11-20", "time_24": "22:00", "status_or_details": "In-class assignment \u2013 handwritten neatly"}, {"course": "Philosophy of God", "title": "Reading & Discussion Question 11: Feser_Classical Theism.pdf", "due_date": "2026-11-20", "iso_date": "2026-11-20", "time_24": "22:00", "status_or_details": "Week Thirteen reading and Discussion Question 11 assignment"}, {"course": "Elementary Spanish II", "title": "VHL Central Homework (Nov 22)", "due_date": "2026-11-22", "iso_date": "2026-11-22", "time_24": "22:00", "status_or_details": "11 activities on VHL Central (Estimated time: 1h 2m)"}, {"course": "Elementary Spanish II", "title": "Contextos + Cultura: Frutos y verduras de Am\u00e9rica", "due_date": "2026-11-23", "iso_date": "2026-11-23", "time_24": "22:00", "status_or_details": "Class preparation"}, {"course": "Philosophy of God", "title": "Reading & Discussion Question 12: Leftow on Aquinas on Omnipotence.pdf", "due_date": "2026-11-23", "iso_date": "2026-11-23", "time_24": "22:00", "status_or_details": "Week Fourteen reading and Discussion Question 12 assignment"}, {"course": "Trinity and Christology", "title": "Reading for Class 39: Christ's Burial/Descent to Hell and his Rewards", "due_date": "2026-11-23", "iso_date": "2026-11-23", "time_24": "22:00", "status_or_details": "Shorter Summa Ch. 234-235, Summa theologiae, III.Q.49.article 6"}, {"course": "Foundations of Ethics", "title": "Reading: Joseph Ratzinger, 'Conscience in Time' (pp. 17\u201327)", "due_date": "2026-11-24", "iso_date": "2026-11-23", "time_24": "22:00", "status_or_details": "Class reading assignment (Night-before rule \u2022 Listed: 2026-11-24)"}, {"course": "Christian Moral Principles", "title": "Class 26 Reading: Catholic Social Teaching (7th and 10th Commandments)", "due_date": "2026-11-24", "iso_date": "2026-11-24", "time_24": "22:00", "status_or_details": "CCC 1928\u201348, 2401\u201363, 2534\u201357; Benedict XVI (2008) speech"}];
+        const BOT_ASSIGNMENTS = [{"course": "Christian Moral Principles", "title": "Respect Marriage II (6th and 9th Commandments)", "due_date": "2026-11-12", "iso_date": "2026-11-12", "time_24": "", "status_or_details": "Readings: CCC 2331\u20132400; Donald Asci, 'Applied TOB: The Difference between Contraception and Natural Family Planning'; Mt 5:27\u201332; Mk 10:1\u201312; CCC 2514\u201333."}, {"course": "Elementary Spanish II", "title": "Lecci\u00f3n 8 - Estructura 8.2 & Estructura 8.3", "due_date": "2026-11-12", "iso_date": "2026-11-12", "time_24": "", "status_or_details": "VHL Central online workset (12 activities, 0% progress)."}, {"course": "Foundations of Ethics", "title": "Reading: John Duns Scotus, Will and Morality, 191\u2013222", "due_date": "2026-11-12", "iso_date": "2026-11-12", "time_24": "", "status_or_details": "Required reading before class."}, {"course": "Trinity and Christology", "title": "Journal for Class 35", "due_date": "2026-11-12", "iso_date": "2026-11-12", "time_24": "23:59", "status_or_details": "Due at 11:59 PM. Reading: Pope Benedict XVI, Jesus of Nazareth, Chapter 3; CCC 488-511."}, {"course": "Elementary Spanish II", "title": "8.3 Comparisons", "due_date": "2026-11-13", "iso_date": "2026-11-13", "time_24": "", "status_or_details": "Class topic and grammar preparation."}, {"course": "Christian Moral Principles", "title": "THE-115 CCC Assessment Exam 2", "due_date": "2026-11-14", "iso_date": "2026-11-14", "time_24": "23:59", "status_or_details": "Canvas quiz due at 11:59 PM (50 points)."}, {"course": "Trinity and Christology", "title": "Journal for Class 36", "due_date": "2026-11-15", "iso_date": "2026-11-15", "time_24": "23:59", "status_or_details": "Due at 11:59 PM. Reading: Pope Benedict XVI, Jesus of Nazareth, Chapter 4 Epilogue; CCC 512-534."}, {"course": "Elementary Spanish II", "title": "8.4 Superlatives", "due_date": "2026-11-16", "iso_date": "2026-11-16", "time_24": "", "status_or_details": "Class topic and grammar preparation."}, {"course": "Philosophy of God", "title": "Reading: Davies_Simplicity.pdf", "due_date": "2026-11-16", "iso_date": "2026-11-16", "time_24": "", "status_or_details": "Week 13 Module reading on Classical Theism."}, {"course": "Christian Moral Principles", "title": "Respect Marriage III (6th and 9th Commandments)", "due_date": "2026-11-17", "iso_date": "2026-11-17", "time_24": "", "status_or_details": "Readings: CDF Considerations Regarding Proposals to Give Legal Recognition to Homosexual Unions (2003); Bishop Barron video on gay marriage."}, {"course": "Foundations of Ethics", "title": "Reading: John Duns Scotus, Will and Morality, 252\u2013282", "due_date": "2026-11-17", "iso_date": "2026-11-17", "time_24": "", "status_or_details": "Required reading before class."}, {"course": "Trinity and Christology", "title": "Journal for Class 37", "due_date": "2026-11-17", "iso_date": "2026-11-17", "time_24": "23:59", "status_or_details": "Due at 11:59 PM. Reading: Christ's Death \u2014 Shorter Summa Ch. 227-230."}, {"course": "Elementary Spanish II", "title": "Lectura: La feria del ma\u00edz", "due_date": "2026-11-18", "iso_date": "2026-11-18", "time_24": "", "status_or_details": "Class reading assignment."}, {"course": "Philosophy of God", "title": "Reading: Mullins_Classical Theism.pdf", "due_date": "2026-11-18", "iso_date": "2026-11-18", "time_24": "", "status_or_details": "Week 13 Module reading."}, {"course": "Christian Moral Principles", "title": "Respect Marriage IV (6th and 9th Commandments)", "due_date": "2026-11-19", "iso_date": "2026-11-19", "time_24": "", "status_or_details": "Reading: William May, 'Generating Human Life Through New Reproductive Technologies,' pp. 81-102. Complete Catechism Assessment."}, {"course": "Foundations of Ethics", "title": "Interpretive Philosophical Essay # 2", "due_date": "2026-11-19", "iso_date": "2026-11-19", "time_24": "08:00", "status_or_details": "Due at 8:00 AM (12.5 pts). Class Reading: John Duns Scotus, Will and Morality, 283\u2013314."}, {"course": "Trinity and Christology", "title": "Journal for Class 38", "due_date": "2026-11-19", "iso_date": "2026-11-19", "time_24": "23:59", "status_or_details": "Due at 11:59 PM. Reading: Christ's Sufferings \u2014 Shorter Summa Ch. 231-233."}, {"course": "Elementary Spanish II", "title": "Escritura L8A", "due_date": "2026-11-20", "iso_date": "2026-11-20", "time_24": "", "status_or_details": "In-class assignment, handwritten neatly."}, {"course": "Philosophy of God", "title": "Reading: Feser_Classical Theism.pdf & Discussion Question 11", "due_date": "2026-11-20", "iso_date": "2026-11-20", "time_24": "", "status_or_details": "Week 13 Module reading and discussion post."}, {"course": "Elementary Spanish II", "title": "Contextos + Cultura: Frutos y verduras de Am\u00e9rica", "due_date": "2026-11-23", "iso_date": "2026-11-23", "time_24": "", "status_or_details": "Class reading and cultural section."}, {"course": "Philosophy of God", "title": "Reading: Leftow on Aquinas on Omnipotence.pdf & Discussion Question 12", "due_date": "2026-11-23", "iso_date": "2026-11-23", "time_24": "", "status_or_details": "Week 14 Module reading and discussion post."}, {"course": "Trinity and Christology", "title": "Journal for Class 39", "due_date": "2026-11-23", "iso_date": "2026-11-23", "time_24": "", "status_or_details": "Reading: Christ's Burial/Descent to Hell and his Rewards \u2014 Shorter Summa Ch. 234-235; Summa Theologiae III, q.49, a.6."}, {"course": "Christian Moral Principles", "title": "Catholic Social Teaching (7th and 10th Commandments)", "due_date": "2026-11-24", "iso_date": "2026-11-24", "time_24": "", "status_or_details": "Readings: CCC 1928\u201348, 2401\u201363, 2534\u201357; Pope Benedict XVI, Address to the Pontifical Academy of Social Sciences."}, {"course": "Foundations of Ethics", "title": "Reading: Joseph Ratzinger, 'Conscience in Time,' 17\u201327", "due_date": "2026-11-24", "iso_date": "2026-11-24", "time_24": "", "status_or_details": "Topic: Conscience."}];
         const GH_USER = "DominatorDomPro";
         const GH_REPO = "homework-hub";
 
         let completedIds = JSON.parse(localStorage.getItem('hw_completed_ids') || '{}');
         let taskOverrides = JSON.parse(localStorage.getItem('hw_task_overrides') || '{}');
         let customTasks = JSON.parse(localStorage.getItem('hw_custom_tasks') || '[]');
+        let globalDefaultTime = localStorage.getItem('hw_global_default_time') || '22:00';
+        let courseRules = JSON.parse(localStorage.getItem('hw_course_rules') || '{}');
+
         let activeCourse = 'ALL';
         let currentView = 'checklist';
 
@@ -211,6 +232,39 @@
             return courseColorMap[courseName];
         }
 
+        function getDefaultRuleForCourse(courseName) {
+            const c = (courseName || '').toLowerCase();
+            if (c.includes('foundations of ethics') || c.includes('ethics') || c === 'foe') {
+                return { shiftDays: -1, timeMode: 'force', customTime: '22:00', skipExamsEssays: true };
+            }
+            if (c.includes('spanish') || c.includes('spn') || c.includes('vhl')) {
+                return { shiftDays: 0, timeMode: 'force', customTime: '22:00', skipExamsEssays: false };
+            }
+            if (c.includes('trinity') || c.includes('christology')) {
+                return { shiftDays: 0, timeMode: 'force', customTime: '22:00', skipExamsEssays: true };
+            }
+            return { shiftDays: 0, timeMode: 'default', customTime: '22:00', skipExamsEssays: true };
+        }
+
+        function getRuleForCourse(courseName) {
+            if (!courseRules[courseName]) {
+                courseRules[courseName] = getDefaultRuleForCourse(courseName);
+            }
+            return courseRules[courseName];
+        }
+
+        function shiftIsoDate(isoDate, daysDelta) {
+            if (!isoDate || !daysDelta) return isoDate;
+            const parts = isoDate.split('-').map(Number);
+            if (parts.length !== 3) return isoDate;
+            const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+            dt.setDate(dt.getDate() + Number(daysDelta));
+            const y = dt.getFullYear();
+            const m = String(dt.getMonth() + 1).padStart(2, '0');
+            const d = String(dt.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
         function getBaseTaskId(item) {
             if (item._id) return item._id;
             const cleanTitle = (item.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -219,7 +273,7 @@
         }
 
         function formatTime12h(time24) {
-            const t = time24 && time24.includes(':') ? time24 : '22:00';
+            const t = time24 && time24.includes(':') ? time24 : globalDefaultTime;
             const [hStr, mStr] = t.split(':');
             let h = parseInt(hStr, 10);
             if (isNaN(h)) return '10:00 PM';
@@ -239,11 +293,35 @@
             const merged = [...BOT_ASSIGNMENTS, ...customTasks].map(raw => {
                 const copy = { ...raw };
                 copy._orig_iso_date = raw._orig_iso_date || raw.iso_date;
-                copy._orig_time_24 = raw._orig_time_24 !== undefined ? raw._orig_time_24 : (raw.time_24 || '22:00');
-                copy.time_24 = copy.time_24 || '22:00';
+                copy._orig_time_24 = raw._orig_time_24 !== undefined ? raw._orig_time_24 : (raw.time_24 || '');
                 const id = getBaseTaskId(copy);
                 copy._id = id;
 
+                // Apply dynamic Course Rules first
+                const rule = getRuleForCourse(copy.course);
+                const tLow = (copy.title || '').toLowerCase();
+                const isMajorAssessment = tLow.includes('essay') || tLow.includes('exam') || tLow.includes('test') || tLow.includes('paper');
+
+                let effDate = copy._orig_iso_date;
+                let effTime = copy._orig_time_24 || globalDefaultTime;
+
+                if (rule) {
+                    const shift = Number(rule.shiftDays || 0);
+                    if (shift !== 0 && !(rule.skipExamsEssays && isMajorAssessment)) {
+                        effDate = shiftIsoDate(copy._orig_iso_date, shift);
+                        copy._rule_shifted = true;
+                    }
+                    if (rule.timeMode === 'force' && !(rule.skipExamsEssays && isMajorAssessment && copy._orig_time_24)) {
+                        effTime = rule.customTime || globalDefaultTime;
+                    } else if (!copy._orig_time_24) {
+                        effTime = rule.customTime || globalDefaultTime;
+                    }
+                }
+
+                copy.iso_date = effDate;
+                copy.time_24 = effTime;
+
+                // Apply individual task overrides second (takes highest priority)
                 if (taskOverrides[id]) {
                     if (taskOverrides[id].iso_date) copy.iso_date = taskOverrides[id].iso_date;
                     if (taskOverrides[id].time_24) copy.time_24 = taskOverrides[id].time_24;
@@ -259,7 +337,94 @@
             });
         }
 
-        // --- TWO-WAY CLOUD SYNC (Checkboxes + Date/Time Edits + Custom Tasks) ---
+        // --- COURSE RULES MODAL FUNCTIONS ---
+        function getAllCourseNames() {
+            const set = new Set([...BOT_ASSIGNMENTS, ...customTasks].map(i => i.course).filter(Boolean));
+            return Array.from(set);
+        }
+
+        function openRulesModal() {
+            document.getElementById('global-default-time-input').value = globalDefaultTime;
+            const courses = getAllCourseNames();
+            const container = document.getElementById('course-rules-list');
+
+            container.innerHTML = courses.map((c, idx) => {
+                const r = getRuleForCourse(c);
+                const badgeStyle = getCourseStyle(c);
+                return `
+                <div class="bg-slate-950 border border-slate-800 rounded-lg p-3.5 space-y-2.5" data-course="${encodeURIComponent(c)}">
+                    <div class="flex items-center justify-between">
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-medium border ${badgeStyle}">${c}</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <div>
+                            <label class="text-[11px] text-slate-400 block mb-1">Due Date Shift</label>
+                            <select class="rule-shift w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                                <option value="0" ${Number(r.shiftDays) === 0 ? 'selected' : ''}>Same day as listed</option>
+                                <option value="-1" ${Number(r.shiftDays) === -1 ? 'selected' : ''}>1 day before (Night before)</option>
+                                <option value="-2" ${Number(r.shiftDays) === -2 ? 'selected' : ''}>2 days before</option>
+                                <option value="1" ${Number(r.shiftDays) === 1 ? 'selected' : ''}>1 day after</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[11px] text-slate-400 block mb-1">Time Rule</label>
+                            <select class="rule-timemode w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                                <option value="default" ${r.timeMode === 'default' ? 'selected' : ''}>Keep portal time (if listed)</option>
+                                <option value="force" ${r.timeMode === 'force' ? 'selected' : ''}>Force all tasks to custom time</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[11px] text-slate-400 block mb-1">Course Due Time</label>
+                            <input type="time" value="${r.customTime || '22:00'}" class="rule-time w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                        </div>
+                    </div>
+                    <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer pt-1">
+                        <input type="checkbox" ${r.skipExamsEssays ? 'checked' : ''} class="rule-skip rounded bg-slate-800 border-slate-700 text-indigo-600">
+                        Keep major Essays / Exams on their official listed date & time
+                    </label>
+                </div>`;
+            }).join('');
+
+            toggleRulesModal(true);
+        }
+
+        function toggleRulesModal(show) {
+            const modal = document.getElementById('rules-modal');
+            modal.classList.toggle('hidden', !show);
+            modal.classList.toggle('flex', show);
+        }
+
+        function saveRulesFromModal() {
+            globalDefaultTime = document.getElementById('global-default-time-input').value || '22:00';
+            localStorage.setItem('hw_global_default_time', globalDefaultTime);
+
+            const cards = document.querySelectorAll('#course-rules-list > div[data-course]');
+            cards.forEach(card => {
+                const courseName = decodeURIComponent(card.getAttribute('data-course'));
+                const shiftDays = parseInt(card.querySelector('.rule-shift').value, 10) || 0;
+                const timeMode = card.querySelector('.rule-timemode').value;
+                const customTime = card.querySelector('.rule-time').value || '22:00';
+                const skipExamsEssays = card.querySelector('.rule-skip').checked;
+                courseRules[courseName] = { shiftDays, timeMode, customTime, skipExamsEssays };
+            });
+
+            localStorage.setItem('hw_course_rules', JSON.stringify(courseRules));
+            toggleRulesModal(false);
+            renderAll();
+            pushRemoteState();
+        }
+
+        function resetAllCourseRules() {
+            courseRules = {};
+            globalDefaultTime = '22:00';
+            localStorage.removeItem('hw_course_rules');
+            localStorage.setItem('hw_global_default_time', '22:00');
+            openRulesModal();
+            renderAll();
+            pushRemoteState();
+        }
+
+        // --- TWO-WAY CLOUD SYNC ---
         function setSyncStatus(text, colorClass) {
             const el = document.getElementById('sync-status');
             el.textContent = text;
@@ -273,9 +438,15 @@
                 const res = await fetch(url);
                 if (res.ok) {
                     const remoteData = await res.json();
-                    if (remoteData && (remoteData._version === 2 || remoteData.completed || remoteData.overrides)) {
+                    if (remoteData && (remoteData._version >= 2 || remoteData.completed || remoteData.overrides)) {
                         completedIds = { ...completedIds, ...(remoteData.completed || {}) };
                         taskOverrides = { ...taskOverrides, ...(remoteData.overrides || {}) };
+                        if (remoteData.courseRules) {
+                            courseRules = { ...courseRules, ...remoteData.courseRules };
+                        }
+                        if (remoteData.globalDefaultTime) {
+                            globalDefaultTime = remoteData.globalDefaultTime;
+                        }
                         if (Array.isArray(remoteData.customTasks) && remoteData.customTasks.length > 0) {
                             const byId = {};
                             [...customTasks, ...remoteData.customTasks].forEach(t => {
@@ -288,6 +459,8 @@
                     }
                     localStorage.setItem('hw_completed_ids', JSON.stringify(completedIds));
                     localStorage.setItem('hw_task_overrides', JSON.stringify(taskOverrides));
+                    localStorage.setItem('hw_course_rules', JSON.stringify(courseRules));
+                    localStorage.setItem('hw_global_default_time', globalDefaultTime);
                     localStorage.setItem('hw_custom_tasks', JSON.stringify(customTasks));
                     setSyncStatus('☁️ Cloud synced', 'text-emerald-400');
                     renderAll();
@@ -318,15 +491,17 @@
                 }
 
                 const payloadObj = {
-                    _version: 2,
+                    _version: 3,
                     completed: completedIds,
                     overrides: taskOverrides,
+                    courseRules: courseRules,
+                    globalDefaultTime: globalDefaultTime,
                     customTasks: customTasks
                 };
 
                 const contentB64 = btoa(unescape(encodeURIComponent(JSON.stringify(payloadObj, null, 2))));
                 const body = {
-                    message: 'Sync homework state (checkboxes & schedule edits)',
+                    message: 'Sync homework state & course rules',
                     content: contentB64,
                     branch: 'main'
                 };
@@ -380,7 +555,7 @@
             pushRemoteState();
         }
 
-        // --- EDIT DATE & TIME FUNCTIONS ---
+        // --- EDIT SINGLE TASK DATE & TIME ---
         function openEditModal(taskId) {
             const allItems = getAllAssignments();
             const item = allItems.find(i => i._id === taskId);
@@ -405,10 +580,7 @@
             const newTime = document.getElementById('edit-time-input').value || '22:00';
             if (!taskId || !newDate) return;
 
-            taskOverrides[taskId] = {
-                iso_date: newDate,
-                time_24: newTime
-            };
+            taskOverrides[taskId] = { iso_date: newDate, time_24: newTime };
             localStorage.setItem('hw_task_overrides', JSON.stringify(taskOverrides));
             toggleEditModal(false);
             renderAll();
@@ -514,7 +686,7 @@
                                 class="text-xs font-medium text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2.5 py-0.5 rounded flex items-center gap-1.5 transition">
                                 <span>📅 ${readableDate}</span>
                                 <span class="text-indigo-300">• ⏰ ${readableTime}</span>
-                                ${item._is_edited ? `<span class="text-[10px] text-emerald-400">(edited)</span>` : ''}
+                                ${item._is_edited ? `<span class="text-[10px] text-emerald-400">(edited)</span>` : (item._rule_shifted ? `<span class="text-[10px] text-cyan-400">(night-before)</span>` : '')}
                             </button>
                         </div>
                         <h3 class="text-base font-semibold ${isDone ? 'line-through text-slate-500' : 'text-white'}">${item.title}</h3>

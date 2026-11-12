@@ -19,10 +19,10 @@
                     <span class="text-2xl">📚</span>
                     <h1 class="text-xl font-bold tracking-tight text-white">Homework Command Center</h1>
                 </div>
-                <p class="text-xs text-slate-400 mt-0.5">Loaded from <code>homework_list.md</code> • Last refreshed: November 11, 2026 at 04:25 PM</p>
+                <p class="text-xs text-slate-400 mt-0.5">Last refreshed: November 11, 2026 at 07:13 PM • <span id="sync-status" class="text-slate-500">Local mode</span></p>
             </div>
 
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
                 <div class="bg-slate-800 p-1 rounded-lg flex items-center text-sm font-medium">
                     <button id="tab-checklist" onclick="switchView('checklist')" class="px-3 py-1.5 rounded-md bg-indigo-600 text-white shadow transition">
                         ✓ Checklist
@@ -31,6 +31,9 @@
                         📅 Calendar
                     </button>
                 </div>
+                <button onclick="toggleSyncModal(true)" id="sync-btn" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm font-medium transition">
+                    ☁️ Cloud Sync
+                </button>
                 <button onclick="toggleModal(true)" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition shadow">
                     + Add Task
                 </button>
@@ -93,6 +96,7 @@
         </section>
     </main>
 
+    <!-- Custom Task Modal -->
     <div id="task-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl">
             <h3 class="text-lg font-bold text-white mb-4">Add Custom Assignment</h3>
@@ -121,8 +125,26 @@
         </div>
     </div>
 
+    <!-- Cloud Sync Setup Modal -->
+    <div id="sync-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl">
+            <h3 class="text-lg font-bold text-white mb-2">☁️ Two-Way Device Sync</h3>
+            <p class="text-xs text-slate-400 mb-4">Paste your GitHub token (<code>ghp_...</code>) once on each device to sync checked boxes between your phone and laptop. Stored privately in your browser only.</p>
+            <div>
+                <label class="text-xs text-slate-400 block mb-1">GitHub Personal Access Token</label>
+                <input id="github-token-input" type="password" placeholder="ghp_..." class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button onclick="toggleSyncModal(false)" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-sm">Close</button>
+                <button onclick="saveSyncToken()" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium">Save & Sync Now</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        const BOT_ASSIGNMENTS = [{"course": "Philosophy of God", "title": "Davies_Concepts of God.pdf & Discussion Question 10", "due_date": "Wednesday, November 11, 2026", "iso_date": "2026-11-11", "status_or_details": "Week Twelve - Concepts of God and Divine Simplicity"}, {"course": "Philosophy of God", "title": "Davies_Simplicity.pdf", "due_date": "Monday, November 16, 2026", "iso_date": "2026-11-16", "status_or_details": "Week Thirteen - Classical Theism"}, {"course": "Philosophy of God", "title": "Mullins_Classical Theism.pdf", "due_date": "Wednesday, November 18, 2026", "iso_date": "2026-11-18", "status_or_details": "Week Thirteen - Classical Theism"}, {"course": "Philosophy of God", "title": "Feser_Classical Theism.pdf & Discussion Question 11", "due_date": "Friday, November 20, 2026", "iso_date": "2026-11-20", "status_or_details": "Week Thirteen - Classical Theism"}];
+        const BOT_ASSIGNMENTS = [{"course": "Philosophy of God", "title": "Davies_Concepts of God.pdf / Discussion Question 10", "due_date": "Wednesday, November 11, 2026", "iso_date": "2026-11-11", "status_or_details": "Read Davies_Concepts of God.pdf and complete Discussion Question 10"}, {"course": "Trinity and Christology", "title": "Journal for Class 34", "due_date": "Wednesday, November 11, 2026", "iso_date": "2026-11-11", "status_or_details": "POPE BENEDICT XVI, JESUS OF NAZARETH, CH 2 AND REREAD LUKE 1-4; CCC 484-487. Submit Journal on Canvas before class."}, {"course": "Elementary Spanish II", "title": "8.2 Double object pronouns (ws)", "due_date": "Wednesday, November 11, 2026", "iso_date": "2026-11-11", "status_or_details": "Prepare for class / go to Vistas for homework"}, {"course": "Foundations of Ethics", "title": "John Duns Scotus, Will and Morality, 155\u2013191", "due_date": "Wednesday, November 11, 2026", "iso_date": "2026-11-11", "status_or_details": "Readings/Topic Covered for Week 12"}, {"course": "Trinity and Christology", "title": "Journal for Class 35", "due_date": "Thursday, November 12, 2026", "iso_date": "2026-11-12", "status_or_details": "Submit Journal on Canvas before class (POPE BENEDICT XVI, JESUS OF NAZARETH, CHAPTER 3; CCC 488-511)"}, {"course": "Foundations of Ethics", "title": "John Duns Scotus, Will and Morality, 191\u2013222", "due_date": "Thursday, November 12, 2026", "iso_date": "2026-11-12", "status_or_details": "Readings/Topic Covered for Week 12"}, {"course": "Elementary Spanish II", "title": "8.3 Comparisons", "due_date": "Friday, November 13, 2026", "iso_date": "2026-11-13", "status_or_details": "Prepare for class / go to Vistas for homework"}, {"course": "Christian Moral Principles", "title": "THE-115 CCC Assessment Exam 2", "due_date": "Saturday, November 14, 2026", "iso_date": "2026-11-14", "status_or_details": "Due at 11:59 PM on Canvas"}, {"course": "Trinity and Christology", "title": "Journal for Class 36", "due_date": "Sunday, November 15, 2026", "iso_date": "2026-11-15", "status_or_details": "Submit Journal on Canvas (POPE BENEDICT XVI, JESUS OF NAZARETH, CHAPTER 4 EPILOGUE; CCC 512-534)"}, {"course": "Philosophy of God", "title": "Davies_Simplicity.pdf", "due_date": "Monday, November 16, 2026", "iso_date": "2026-11-16", "status_or_details": "Week Thirteen - Classical Theism reading"}, {"course": "Elementary Spanish II", "title": "8.4 Superlatives", "due_date": "Monday, November 16, 2026", "iso_date": "2026-11-16", "status_or_details": "Prepare for class / go to Vistas for homework"}, {"course": "Trinity and Christology", "title": "Journal for Class 37", "due_date": "Tuesday, November 17, 2026", "iso_date": "2026-11-17", "status_or_details": "Submit Journal on Canvas (Shorter Summa Ch. 227-230)"}, {"course": "Philosophy of God", "title": "Mullins_Classical Theism.pdf", "due_date": "Wednesday, November 18, 2026", "iso_date": "2026-11-18", "status_or_details": "Week Thirteen - Classical Theism reading"}, {"course": "Elementary Spanish II", "title": "Lectura: La feria del ma\u00edz", "due_date": "Wednesday, November 18, 2026", "iso_date": "2026-11-18", "status_or_details": "Prepare for class / go to Vistas for homework"}, {"course": "Foundations of Ethics", "title": "Interpretive Philosophical Essay # 2 Due", "due_date": "Thursday, November 19, 2026", "iso_date": "2026-11-19", "status_or_details": "John Duns Scotus, Will and Morality, 283\u2013314 / Essay 2 due at 8:00 AM"}, {"course": "Trinity and Christology", "title": "Journal for Class 38", "due_date": "Thursday, November 19, 2026", "iso_date": "2026-11-19", "status_or_details": "Submit Journal on Canvas (Shorter Summa Ch. 231-233)"}, {"course": "Philosophy of God", "title": "Feser_Classical Theism.pdf / Discussion Question 11", "due_date": "Friday, November 20, 2026", "iso_date": "2026-11-20", "status_or_details": "Read Feser_Classical Theism.pdf and complete Discussion Question 11"}, {"course": "Elementary Spanish II", "title": "Escritura L8A", "due_date": "Friday, November 20, 2026", "iso_date": "2026-11-20", "status_or_details": "Handwritten neatly in class"}, {"course": "Philosophy of God", "title": "Leftow on Aquinas on Omnipotence.pdf / Discussion Question 12", "due_date": "Monday, November 23, 2026", "iso_date": "2026-11-23", "status_or_details": "Week Fourteen reading and assignment"}, {"course": "Elementary Spanish II", "title": "Contextos + Cultura: Frutos y verduras de Am\u00e9rica", "due_date": "Monday, November 23, 2026", "iso_date": "2026-11-23", "status_or_details": "Prepare for class / go to Vistas for homework"}];
+        const GH_USER = "DominatorDomPro";
+        const GH_REPO = "homework-hub";
 
         let completedIds = JSON.parse(localStorage.getItem('hw_completed_ids') || '{}');
         let customTasks = JSON.parse(localStorage.getItem('hw_custom_tasks') || '[]');
@@ -152,11 +174,102 @@
         }
 
         function getTaskId(item) {
-            return encodeURIComponent(item.course + '__' + item.title + '__' + item.iso_date);
+            // Normalize title slightly so minor punctuation tweaks keep checkboxes intact
+            const cleanTitle = item.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+            return encodeURIComponent(item.course + '__' + cleanTitle + '__' + item.iso_date);
         }
 
         function getAllAssignments() {
             return [...BOT_ASSIGNMENTS, ...customTasks].sort((a, b) => (a.iso_date || '9999').localeCompare(b.iso_date || '9999'));
+        }
+
+        // --- TWO-WAY CLOUD SYNC FUNCTIONS ---
+        function setSyncStatus(text, colorClass) {
+            const el = document.getElementById('sync-status');
+            el.textContent = text;
+            el.className = colorClass;
+        }
+
+        async function pullRemoteCompleted() {
+            if (!GH_USER || GH_USER === 'YOUR_GITHUB_USERNAME') return;
+            try {
+                const url = `https://raw.githubusercontent.com/${GH_USER}/${GH_REPO}/main/completed.json?t=${Date.now()}`;
+                const res = await fetch(url);
+                if (res.ok) {
+                    const remoteData = await res.json();
+                    completedIds = { ...completedIds, ...remoteData };
+                    localStorage.setItem('hw_completed_ids', JSON.stringify(completedIds));
+                    setSyncStatus('☁️ Cloud synced', 'text-emerald-400');
+                    renderAll();
+                }
+            } catch (e) {
+                console.log('No remote completed.json yet or offline.');
+            }
+        }
+
+        async function pushRemoteCompleted() {
+            const token = localStorage.getItem('hw_gh_token');
+            if (!token || !GH_USER || GH_USER === 'YOUR_GITHUB_USERNAME') return;
+
+            setSyncStatus('☁️ Syncing...', 'text-amber-400');
+            const apiUrl = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/completed.json`;
+            const headers = {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/vnd.github+json',
+                'Content-Type': 'application/json'
+            };
+
+            try {
+                let sha = null;
+                const getRes = await fetch(apiUrl, { headers });
+                if (getRes.ok) {
+                    const fileInfo = await getRes.json();
+                    sha = fileInfo.sha;
+                }
+
+                const contentB64 = btoa(unescape(encodeURIComponent(JSON.stringify(completedIds, null, 2))));
+                const body = {
+                    message: 'Sync completed checkboxes',
+                    content: contentB64,
+                    branch: 'main'
+                };
+                if (sha) body.sha = sha;
+
+                const putRes = await fetch(apiUrl, {
+                    method: 'PUT',
+                    headers,
+                    body: JSON.stringify(body)
+                });
+
+                if (putRes.ok) {
+                    setSyncStatus('☁️ Cloud synced', 'text-emerald-400');
+                } else {
+                    setSyncStatus('⚠️ Sync token error', 'text-rose-400');
+                }
+            } catch (e) {
+                setSyncStatus('⚠️ Offline (saved locally)', 'text-amber-400');
+            }
+        }
+
+        function toggleSyncModal(show) {
+            const modal = document.getElementById('sync-modal');
+            if (show) {
+                document.getElementById('github-token-input').value = localStorage.getItem('hw_gh_token') || '';
+            }
+            modal.classList.toggle('hidden', !show);
+            modal.classList.toggle('flex', show);
+        }
+
+        function saveSyncToken() {
+            const val = document.getElementById('github-token-input').value.trim();
+            if (val) {
+                localStorage.setItem('hw_gh_token', val);
+                pushRemoteCompleted();
+            } else {
+                localStorage.removeItem('hw_gh_token');
+                setSyncStatus('Local mode', 'text-slate-500');
+            }
+            toggleSyncModal(false);
         }
 
         function toggleComplete(taskId) {
@@ -167,6 +280,7 @@
             }
             localStorage.setItem('hw_completed_ids', JSON.stringify(completedIds));
             renderAll();
+            pushRemoteCompleted();
         }
 
         function deleteCustomTask(index) {
@@ -359,6 +473,7 @@
         }
 
         renderAll();
+        pullRemoteCompleted();
     </script>
 </body>
 </html>

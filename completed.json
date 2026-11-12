@@ -81,9 +81,9 @@
     "Foundations of Ethics": "amber",
     "CAT 120": "purple"
   },
-  "cardOpacity": 43,
+  "cardOpacity": 15,
   "globalDefaultTime": "00:00",
-  "themePreference": "halloween",
+  "themePreference": "july4",
   "customTasks": [
     {
       "course": "Philosophy of God",

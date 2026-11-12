@@ -31,17 +31,17 @@
     }
   },
   "courseRules": {
-    "Christian Moral Principles": {
-      "shiftDays": 0,
-      "timeMode": "force",
-      "customTime": "10:00",
-      "skipExamsEssays": true
-    },
     "Elementary Spanish II": {
       "shiftDays": 0,
       "timeMode": "force",
       "customTime": "22:00",
       "skipExamsEssays": false
+    },
+    "Christian Moral Principles": {
+      "shiftDays": 0,
+      "timeMode": "force",
+      "customTime": "10:00",
+      "skipExamsEssays": true
     },
     "Foundations of Ethics": {
       "shiftDays": -1,
@@ -63,6 +63,14 @@
     }
   },
   "globalDefaultTime": "00:00",
-  "themePreference": "july4",
-  "customTasks": []
+  "themePreference": "winter",
+  "customTasks": [
+    {
+      "course": "Philosophy of God",
+      "title": "Final Paper Work",
+      "iso_date": "2026-11-13",
+      "due_date": "2026-11-13",
+      "status_or_details": ""
+    }
+  ]
 }

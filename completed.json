@@ -1,5 +1,5 @@
 {
-  "_version": 2,
+  "_version": 3,
   "completed": {
     "Philosophy%20of%20God__Davies_Concepts%20of%20God.pdf__2026-11-11": true,
     "Philosophy%20of%20God__Discussion%20Question%2010__2026-11-11": true,
@@ -12,7 +12,8 @@
     "Elementary%20Spanish%20II__leccin8estructura82doubleobjectpronouns__2026-11-10": true,
     "Philosophy%20of%20God__weektwelvewednesday1111conceptsofgoddiscussionquestion10__2026-11-11": true,
     "Trinity%20and%20Christology__class34readinginfancynarrativesmary__2026-11-11": true,
-    "Foundations%20of%20Ethics__readingscotuswillandmoralitypp191222__2026-11-11": true
+    "Foundations%20of%20Ethics__readingscotuswillandmoralitypp191222__2026-11-11": true,
+    "Foundations%20of%20Ethics__readingjohndunsscotuswillandmorality191222__2026-11-12": true
   },
   "overrides": {
     "Philosophy%20of%20God__weektwelvewednesday1111conceptsofgoddiscussionquestion10__2026-11-11": {
@@ -28,5 +29,38 @@
       "time_24": "22:00"
     }
   },
+  "courseRules": {
+    "Christian Moral Principles": {
+      "shiftDays": 0,
+      "timeMode": "default",
+      "customTime": "22:00",
+      "skipExamsEssays": true
+    },
+    "Elementary Spanish II": {
+      "shiftDays": 0,
+      "timeMode": "force",
+      "customTime": "22:00",
+      "skipExamsEssays": false
+    },
+    "Foundations of Ethics": {
+      "shiftDays": -1,
+      "timeMode": "force",
+      "customTime": "22:00",
+      "skipExamsEssays": true
+    },
+    "Trinity and Christology": {
+      "shiftDays": 0,
+      "timeMode": "force",
+      "customTime": "22:00",
+      "skipExamsEssays": true
+    },
+    "Philosophy of God": {
+      "shiftDays": 0,
+      "timeMode": "default",
+      "customTime": "22:00",
+      "skipExamsEssays": true
+    }
+  },
+  "globalDefaultTime": "22:00",
   "customTasks": []
 }

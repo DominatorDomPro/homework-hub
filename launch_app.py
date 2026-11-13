@@ -2440,7 +2440,7 @@ def build_and_open_app(assignments: list):
     print(f"Loaded {len(assignments)} assignments from '{MD_FILE}'!")
     print(f"Opening local web app: {app_path}")
     if not os.environ.get("GITHUB_ACTIONS"):
-    webbrowser.open(f"file://{app_path}")
+        webbrowser.open(f"file://{app_path}")
 
     upload_to_github("index.html", html_content)
 

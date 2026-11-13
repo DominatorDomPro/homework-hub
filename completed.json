@@ -20,7 +20,8 @@
     "Elementary%20Spanish%20II__vhlassignmentnov1220261112__2026-11-12": true,
     "Philosophy%20of%20God__daviesconceptsofgodpdf__2026-11-12": true,
     "Philosophy%20of%20God__discussionquestion10__2026-11-12": true,
-    "Trinity%20and%20Christology__journalforclass35__2026-11-13": true
+    "Trinity%20and%20Christology__journalforclass35__2026-11-13": true,
+    "Christian%20Moral%20Principles__readingrespectmarriageii6thand9thcommandments__2026-11-12": true
   },
   "overrides": {
     "Philosophy%20of%20God__weektwelvewednesday1111conceptsofgoddiscussionquestion10__2026-11-11": {
@@ -61,17 +62,17 @@
     }
   },
   "courseRules": {
-    "Christian Moral Principles": {
-      "shiftDays": 0,
-      "timeMode": "force",
-      "customTime": "10:00",
-      "skipExamsEssays": true
-    },
     "Elementary Spanish II": {
       "shiftDays": 0,
       "timeMode": "force",
       "customTime": "22:00",
       "skipExamsEssays": false
+    },
+    "Christian Moral Principles": {
+      "shiftDays": 0,
+      "timeMode": "force",
+      "customTime": "10:00",
+      "skipExamsEssays": true
     },
     "Foundations of Ethics": {
       "shiftDays": -1,

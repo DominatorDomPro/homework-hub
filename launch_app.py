@@ -1,0 +1,2450 @@
+import os
+import re
+import json
+import base64
+import webbrowser
+import urllib.request
+import urllib.error
+from datetime import datetime
+
+MD_FILE = "homework_list.md"
+APP_FILE = "index.html"
+
+# =====================================================================
+# GITHUB CONFIGURATION (Pre-filled for DominatorDomPro!)
+# =====================================================================
+GITHUB_USERNAME = "DominatorDomPro"
+GITHUB_REPO = "homework-hub"
+# Reads token from local token.txt (if present) or GitHub Actions environment
+TOKEN_FILE = "token.txt"
+if os.path.exists(TOKEN_FILE):
+    with open(TOKEN_FILE, "r", encoding="utf-8") as f:
+        GITHUB_TOKEN = f.read().strip()
+else:
+    GITHUB_TOKEN = os.environ.get("GH_PAT", "")
+
+
+def _extract_single_iso_date(text: str, default_year: int):
+    """Helper that looks for YYYY-MM-DD, MM/DD/YYYY, or Month DD in a string."""
+    iso_match = re.search(r"\b(\d{4}-\d{2}-\d{2})\b", text)
+    if iso_match:
+        return iso_match.group(1)
+
+    slash_match = re.search(r"\b(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\b", text)
+    if slash_match:
+        month = int(slash_match.group(1))
+        day = int(slash_match.group(2))
+        year_part = slash_match.group(3)
+        year = int(year_part) if year_part else default_year
+        if year < 100:
+            year += 2000
+        try:
+            return datetime(year, month, day).strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+
+    months = {
+        "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+        "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12
+    }
+    month_match = re.search(
+        r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+(\d{1,2})(?:[,\s]+(\d{4}))?",
+        text,
+        re.IGNORECASE,
+    )
+    if month_match:
+        month = months[month_match.group(1)[:3].lower()]
+        day = int(month_match.group(2))
+        year = int(month_match.group(3)) if month_match.group(3) else default_year
+        try:
+            return datetime(year, month, day).strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+
+    return None
+
+
+def parse_date_to_iso(date_str: str, details_str: str = "", title_str: str = "") -> str:
+    """Extracts a YYYY-MM-DD calendar date from due_date (with details and title as backup)."""
+    now = datetime.now()
+    default_year = now.year
+    combined = f"{date_str} | {details_str} | {title_str}"
+
+    # 1. Check if due_date itself is already a clean YYYY-MM-DD
+    found_due = _extract_single_iso_date(date_str, default_year)
+    if found_due:
+        return found_due
+
+    # 2. Check for an explicit "due <date>" or "on <date>" phrase across columns
+    due_phrase = re.search(
+        r"(?:due|on)\s+(?:[A-Za-z]+,\s*)?(\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}(?:/\d{2,4})?|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:[,\s]+\d{4})?)",
+        combined,
+        re.IGNORECASE,
+    )
+    if due_phrase:
+        found = _extract_single_iso_date(due_phrase.group(1), default_year)
+        if found:
+            return found
+
+    # 3. Backup check in details, then title
+    found_details = _extract_single_iso_date(details_str, default_year)
+    if found_details:
+        return found_details
+
+    found_title = _extract_single_iso_date(title_str, default_year)
+    if found_title:
+        return found_title
+
+    return now.strftime("%Y-%m-%d")
+
+
+def parse_time_to_24h(date_str: str, details_str: str = "") -> str:
+    """Extracts a 24-hour HH:MM time string from due_date or details, or '' if none is listed."""
+    combined = f"{date_str} {details_str}".strip()
+    ampm_match = re.search(r"\b(\d{1,2}):(\d{2})\s*(AM|PM)\b", combined, re.IGNORECASE)
+    if ampm_match:
+        hour = int(ampm_match.group(1))
+        minute = int(ampm_match.group(2))
+        meridiem = ampm_match.group(3).upper()
+        if meridiem == "PM" and hour != 12:
+            hour += 12
+        elif meridiem == "AM" and hour == 12:
+            hour = 0
+        return f"{hour:02d}:{minute:02d}"
+
+    mil_match = re.search(r"\b([01]?\d|2[0-3]):([0-5]\d)\b", date_str.strip())
+    if mil_match:
+        return f"{int(mil_match.group(1)):02d}:{int(mil_match.group(2)):02d}"
+
+    return ""
+
+
+def parse_markdown_file(filepath: str) -> list:
+    """Reads homework_list.md and dynamically locates the date column even if Title or Details contain '|' pipes."""
+    if not os.path.exists(filepath):
+        print(f"Error: '{filepath}' not found! Run `python homework_bot.py` first.")
+        return []
+
+    assignments = []
+    default_year = datetime.now().year
+    with open(filepath, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    for line in lines:
+        line = line.strip()
+        if not (line.startswith("|") and line.endswith("|")):
+            continue
+
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if len(cells) < 4:
+            continue
+
+        if cells[0].lower() == "course" or ":---" in cells[0] or "---" in cells[0]:
+            continue
+
+        course = cells[0].replace("**", "").strip()
+
+        # Dynamically find which cell is the Due Date column (handles '|' pipes in both Title and Details)
+        date_idx = None
+        for i in range(2, len(cells) - 1):
+            if re.match(r"^\d{4}-\d{2}-\d{2}\b", cells[i]):
+                date_idx = i
+                break
+
+        if date_idx is None:
+            for i in range(2, len(cells) - 1):
+                if _extract_single_iso_date(cells[i], default_year) is not None:
+                    date_idx = i
+                    break
+
+        if date_idx is None:
+            date_idx = 2  # Standard 4-column table fallback
+
+        title = " - ".join(cells[1:date_idx]).replace("**", "").strip()
+        due_date = cells[date_idx].strip()
+        details = " - ".join(cells[date_idx + 1:]).strip()
+
+        raw_iso = parse_date_to_iso(due_date, details, title)
+        raw_time = parse_time_to_24h(due_date, details)
+
+        assignments.append({
+            "course": course,
+            "title": title,
+            "due_date": due_date,
+            "iso_date": raw_iso,
+            "time_24": raw_time,
+            "status_or_details": details,
+        })
+
+    return assignments
+
+
+def upload_to_github(filename: str, file_content: str):
+    """Uploads or updates a file directly in GitHub via the REST API."""
+    if GITHUB_TOKEN == "PASTE_YOUR_GHP_TOKEN_HERE" or not GITHUB_USERNAME:
+        print("Note: GitHub sync skipped (fill in GITHUB_USERNAME and GITHUB_TOKEN to enable).")
+        return
+
+    url = f"https://api.github.com/repos/{GITHUB_USERNAME}/{GITHUB_REPO}/contents/{filename}"
+    headers = {
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "HomeworkSyncScript"
+    }
+
+    sha = None
+    req = urllib.request.Request(url, headers=headers, method="GET")
+    try:
+        with urllib.request.urlopen(req) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            sha = data.get("sha")
+    except urllib.error.HTTPError as e:
+        if e.code != 404:
+            print(f"Warning: Issue checking GitHub file status (HTTP {e.code})")
+
+    content_b64 = base64.b64encode(file_content.encode("utf-8")).decode("utf-8")
+    payload = {
+        "message": f"Auto-update homework app: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        "content": content_b64,
+        "branch": "main"
+    }
+    if sha:
+        payload["sha"] = sha
+
+    put_data = json.dumps(payload).encode("utf-8")
+    put_req = urllib.request.Request(url, data=put_data, headers=headers, method="PUT")
+
+    try:
+        with urllib.request.urlopen(put_req) as resp:
+            if resp.status in (200, 201):
+                page_url = f"https://{GITHUB_USERNAME}.github.io/{GITHUB_REPO}/"
+                print("Uploaded successfully to GitHub!")
+                print(f"Phone app available at: {page_url}")
+    except urllib.error.HTTPError as e:
+        err_msg = e.read().decode("utf-8")
+        print(f"GitHub Upload Failed (HTTP {e.code}): {err_msg}")
+    except Exception as e:
+        print(f"GitHub Upload Failed: {e}")
+
+
+HTML_TEMPLATE = """<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Homework Command Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg-top: #0f172a;
+            --bg-bottom: #1e1b4b;
+            --card-rgb: 15, 23, 42;
+            --card-opacity: 0.68;
+            --card-border: rgba(255, 255, 255, 0.18);
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+        }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
+            background-attachment: fixed;
+            transition: background 0.8s ease;
+        }
+       .glass-card {
+            background: rgba(var(--card-rgb), var(--card-opacity));
+            border-color: var(--card-border);
+        }
+        .theme-accent-bg { background-color: var(--accent); }
+        .theme-accent-bg:hover { background-color: var(--accent-hover); }
+        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+
+        /* Realistic Multi-Tongue Fire Animations */
+        @keyframes hearthGlow {
+            0%, 100% { opacity: 0.5; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.05); }
+        }
+        @keyframes coalPulse {
+            0%, 100% { opacity: 0.75; filter: brightness(1); }
+            50% { opacity: 1; filter: brightness(1.3); }
+        }
+        @keyframes flameWave1 {
+            0%, 100% { transform: scaleY(1) scaleX(1) rotate(0deg); }
+            30% { transform: scaleY(1.09) scaleX(0.95) rotate(-1.5deg); }
+            65% { transform: scaleY(0.94) scaleX(1.04) rotate(1.5deg); }
+        }
+        @keyframes flameWave2 {
+            0%, 100% { transform: scaleY(0.96) scaleX(1.03) rotate(1deg); }
+            45% { transform: scaleY(1.12) scaleX(0.93) rotate(-2deg); }
+        }
+        @keyframes flameWave3 {
+            0%, 100% { transform: scaleY(1.04) scaleX(0.97) rotate(-1deg); }
+            50% { transform: scaleY(0.91) scaleX(1.06) rotate(2deg); }
+        }
+        @keyframes emberFloat1 {
+            0% { transform: translate(0, 0) scale(1); opacity: 0.95; }
+            50% { transform: translate(-8px, -38px) scale(0.7); opacity: 0.7; }
+            100% { transform: translate(6px, -78px) scale(0.15); opacity: 0; }
+        }
+        @keyframes emberFloat2 {
+            0% { transform: translate(0, 0) scale(1); opacity: 0.9; }
+            50% { transform: translate(10px, -42px) scale(0.65); opacity: 0.6; }
+            100% { transform: translate(-6px, -85px) scale(0.1); opacity: 0; }
+        }
+        @keyframes steamWaft {
+            0% { transform: translateY(0) translateX(0) scaleX(1); opacity: 0.65; }
+            50% { transform: translateY(-12px) translateX(4px) scaleX(1.15); opacity: 0.4; }
+            100% { transform: translateY(-24px) translateX(-3px) scaleX(0.9); opacity: 0; }
+        }
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.35; transform: scale(0.9); }
+            50% { opacity: 1; transform: scale(1.22); }
+        }
+        @keyframes flagWave {
+            0%, 100% { transform: skewY(0deg) scaleX(1); }
+            50% { transform: skewY(-4deg) scaleX(0.96); }
+        }
+        @keyframes sparklerPulse {
+            0%, 100% { transform: scale(0.8) rotate(0deg); opacity: 0.7; }
+            50% { transform: scale(1.35) rotate(45deg); opacity: 1; }
+        }
+        @keyframes cheerArms {
+            0%, 100% { transform: rotate(0deg); }
+            50% { transform: rotate(-18deg); }
+        }
+        @keyframes snowballArcLeftToRight {
+            0% { transform: translate(0, 0) scale(0.8); opacity: 0; }
+            15% { opacity: 1; }
+            50% { transform: translate(110px, -55px) scale(1); opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translate(220px, 8px) scale(0.6); opacity: 0; }
+        }
+        @keyframes snowballArcRightToLeft {
+            0% { transform: translate(0, 0) scale(0.8); opacity: 0; }
+            15% { opacity: 1; }
+            50% { transform: translate(-110px, -60px) scale(1); opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translate(-220px, 8px) scale(0.6); opacity: 0; }
+        }
+        @keyframes skaterGlide {
+            0%, 100% { transform: translateX(0px) translateY(0px); }
+            50% { transform: translateX(65px) translateY(-8px); }
+        }
+        @keyframes sledSlide {
+            0% { transform: translate(0px, 0px); opacity: 0; }
+            12% { opacity: 1; }
+            88% { opacity: 1; }
+            100% { transform: translate(220px, 95px); opacity: 0; }
+        }
+        @keyframes kiteSway {
+            0%, 100% { transform: translate(0px, 0px) rotate(-4deg); }
+            50% { transform: translate(18px, -14px) rotate(6deg); }
+        }
+
+        /* True Parabolic Volleyball Physics (Linear X + Gravity Bounce Y) & Jumping Players */
+        @keyframes vballHorizontal {
+            0% { transform: translateX(0px); }
+            50% { transform: translateX(132px); }
+            100% { transform: translateX(0px); }
+        }
+        @keyframes vballVertical {
+            0%, 50%, 100% {
+                transform: translateY(0px) scaleX(1.08) scaleY(0.92);
+                animation-timing-function: cubic-bezier(0.22, 0.88, 0.38, 1);
+            }
+            25%, 75% {
+                transform: translateY(-68px) scaleX(1) scaleY(1);
+                animation-timing-function: cubic-bezier(0.62, 0, 0.78, 0.12);
+            }
+        }
+        @keyframes playerJumpLeft {
+            0%, 15%, 100% { transform: translateY(0px); }
+            4% { transform: translateY(-14px); }
+        }
+        @keyframes playerArmLeft {
+            0%, 18%, 100% { transform: rotate(20deg); }
+            4% { transform: rotate(-45deg); }
+        }
+        @keyframes playerJumpRight {
+            0%, 38%, 65%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-14px); }
+        }
+        @keyframes playerArmRight {
+            0%, 38%, 65%, 100% { transform: rotate(-20deg); }
+            50% { transform: rotate(45deg); }
+        }
+        @keyframes surferRide {
+            0%, 100% { transform: translateX(0px) translateY(0px) rotate(-2deg); }
+            50% { transform: translateX(-45px) translateY(-6px) rotate(4deg); }
+        }
+        @keyframes floatBob {
+            0%, 100% { transform: translateY(0px) rotate(-2deg); }
+            50% { transform: translateY(-5px) rotate(2deg); }
+        }
+        @keyframes leafJump {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            45% { transform: translateY(-28px) rotate(-12deg); }
+        }
+        @keyframes witchFly {
+            0% { transform: translateX(-160px) translateY(20px); opacity: 0; }
+            15% { opacity: 0.9; }
+            85% { opacity: 0.9; }
+            100% { transform: translateX(380px) translateY(-35px); opacity: 0; }
+        }
+        @keyframes bunnyHop {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            45% { transform: translateY(-24px) rotate(-8deg); }
+        }
+        @keyframes sunSpin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes smokeRise {
+            0% { transform: translateY(0) scale(0.6); opacity: 0.65; }
+            100% { transform: translateY(-65px) translateX(22px) scale(1.7); opacity: 0; }
+        }
+
+        .hearth-glow { animation: hearthGlow 3.2s infinite ease-in-out; transform-origin: center; }
+        .coal-bed { animation: coalPulse 2.2s infinite ease-in-out; }
+        .flame-w1 { animation: flameWave1 1.9s infinite ease-in-out; transform-box: fill-box; transform-origin: bottom center; }
+        .flame-w2 { animation: flameWave2 1.4s infinite ease-in-out; transform-box: fill-box; transform-origin: bottom center; }
+        .flame-w3 { animation: flameWave3 1.1s infinite ease-in-out; transform-box: fill-box; transform-origin: bottom center; }
+        .ember-1 { animation: emberFloat1 2.7s infinite linear; }
+        .ember-2 { animation: emberFloat2 3.3s infinite linear 1.2s; }
+        .steam-1 { animation: steamWaft 2.6s infinite ease-in-out; }
+        .steam-2 { animation: steamWaft 2.6s infinite ease-in-out 1.3s; }
+        .light-1 { animation: twinkle 2.2s infinite ease-in-out; transform-box: fill-box; transform-origin: center; }
+        .light-2 { animation: twinkle 2.2s infinite ease-in-out 0.7s; transform-box: fill-box; transform-origin: center; }
+        .light-3 { animation: twinkle 2.2s infinite ease-in-out 1.4s; transform-box: fill-box; transform-origin: center; }
+        .flag-wave { animation: flagWave 2.6s infinite ease-in-out; transform-origin: left center; }
+        .sparkler-glow { animation: sparklerPulse 0.6s infinite ease-in-out; transform-box: fill-box; transform-origin: center; }
+        .cheer-arm { animation: cheerArms 1.5s infinite ease-in-out; transform-box: fill-box; transform-origin: bottom center; }
+        .snowball-1 { animation: snowballArcLeftToRight 2.2s infinite ease-in-out; }
+        .snowball-2 { animation: snowballArcRightToLeft 2.2s infinite ease-in-out 1.1s; }
+        .skater { animation: skaterGlide 5.5s infinite ease-in-out; }
+        .sledder { animation: sledSlide 5s infinite linear; }
+        .kite-float { animation: kiteSway 4.2s infinite ease-in-out; transform-box: fill-box; transform-origin: center; }
+        .vball-x { animation: vballHorizontal 2.4s infinite linear; }
+        .vball-y { animation: vballVertical 2.4s infinite; transform-box: fill-box; transform-origin: center; }
+        .vp-left { animation: playerJumpLeft 2.4s infinite ease-out; }
+        .vp-arm-left { animation: playerArmLeft 2.4s infinite ease-out; transform-box: fill-box; transform-origin: left center; }
+        .vp-right { animation: playerJumpRight 2.4s infinite ease-out; }
+        .vp-arm-right { animation: playerArmRight 2.4s infinite ease-out; transform-box: fill-box; transform-origin: right center; }
+        .surfer { animation: surferRide 4s infinite ease-in-out; }
+        .float-tube { animation: floatBob 3s infinite ease-in-out; }
+        .kid-jump { animation: leafJump 1.9s infinite ease-in-out; transform-box: fill-box; transform-origin: bottom center; }
+        .witch-broom { animation: witchFly 14s infinite linear; }
+        .bunny-1 { animation: bunnyHop 1.8s infinite ease-in-out; }
+        .bunny-2 { animation: bunnyHop 2.2s infinite ease-in-out 0.7s; }
+        .sun-rays { animation: sunSpin 32s infinite linear; transform-origin: center; }
+        .chimney-smoke-1 { animation: smokeRise 3.8s infinite ease-out; }
+        .chimney-smoke-2 { animation: smokeRise 3.8s infinite ease-out 1.9s; }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen pb-28 relative overflow-x-hidden">
+<!-- Full-Screen Immersive Cartoon World / Interior Scenery -->
+    <div id="theme-scenery" class="fixed inset-0 w-screen h-screen pointer-events-none z-0 overflow-hidden"></div>
+
+    <!-- Background Fade-to-Black Dimmer Layer -->
+    <div id="theme-dimmer" class="fixed inset-0 w-screen h-screen pointer-events-none z-0 bg-black transition-opacity duration-150" style="opacity: 0;"></div>
+
+    <!-- Animated Particle Canvas (Ambient Weather + Task Completion Bursts) -->
+    <canvas id="theme-canvas" class="fixed inset-0 pointer-events-none z-20"></canvas>
+
+    <!-- Themed Encouraging Completion Toast Banner -->
+    <div id="reward-toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 -translate-y-4 transition-all duration-300">
+        <div class="glass-card border-2 border-amber-300/60 shadow-2xl rounded-2xl px-5 py-3 flex items-center gap-3">
+            <span id="reward-toast-icon" class="text-2xl">🎉</span>
+            <div>
+                <div id="reward-toast-title" class="text-sm font-bold text-white">Awesome job!</div>
+                <div id="reward-toast-sub" class="text-xs text-amber-200">Task completed!</div>
+            </div>
+        </div>
+    </div>
+
+    <header class="border-b glass-card sticky top-0 z-30">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3">
+            <!-- Always-Visible Compact Top Bar -->
+            <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <span id="theme-header-icon" class="text-2xl shrink-0">📚</span>
+                    <h1 class="text-base sm:text-xl font-bold tracking-tight text-white truncate">Homework Hub</h1>
+                </div>
+
+                <div class="flex items-center gap-2 shrink-0">
+                    <div class="bg-slate-900/80 border border-white/10 p-1 rounded-lg flex items-center text-xs sm:text-sm font-medium">
+                        <button id="tab-checklist" onclick="switchView('checklist')" class="px-2.5 py-1 rounded-md theme-accent-bg text-white shadow transition">✓ List</button>
+                        <button id="tab-calendar" onclick="switchView('calendar')" class="px-2.5 py-1 rounded-md text-slate-300 hover:text-white transition">📅 Cal</button>
+                    </div>
+                    <button onclick="toggleModal(true)" class="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-medium transition shadow">+ Task</button>
+                    <button onclick="openSettingsPage(true)" class="px-2.5 py-1.5 rounded-lg glass-card hover:bg-white/15 border text-slate-100 text-xs sm:text-sm font-medium flex items-center gap-1 transition">
+                        <span>⚙️</span>
+                        <span class="hidden sm:inline">Settings</span>
+                    </button>
+                    <button onclick="toggleTopTray()" id="tray-toggle-btn" title="Show/Hide 48h Progress Tray" class="px-2.5 py-1.5 rounded-lg glass-card hover:bg-white/15 border text-slate-100 text-xs sm:text-sm font-medium flex items-center gap-1 transition">
+                        <span>🔥</span>
+                        <span class="hidden sm:inline">48h Progress</span>
+                        <span id="tray-chevron" class="text-xs transition-transform duration-200">▾</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Collapsible Tray: Focused 48-Hour Progress Bar + Quick Info -->
+            <div id="top-collapsible-tray" class="hidden pt-3 mt-3 border-t border-white/10 space-y-3">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span id="theme-badge" onclick="openSettingsPage(true)" class="cursor-pointer text-[11px] font-semibold px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 text-white border border-white/15 transition"></span>
+                        <p class="text-xs text-slate-200/80">Refreshed: __LAST_SYNCED__ • <span id="sync-status" class="text-slate-300">Local mode</span></p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="pullRemoteState()" class="px-2.5 py-1 rounded-lg glass-card hover:bg-white/10 border text-slate-100 text-xs font-medium transition">🔄 Sync Now</button>
+                        <button onclick="openSettingsPage(true)" class="px-3 py-1 rounded-lg glass-card hover:bg-white/10 border text-slate-100 text-xs font-medium transition">⚙️ Open Full Settings</button>
+                    </div>
+                </div>
+
+                <!-- 48-Hour Completion Progress Bar (Total Task Count Removed) -->
+                <div class="bg-slate-900/65 border border-white/10 rounded-xl p-3.5 flex flex-col justify-between">
+                    <div class="flex justify-between items-center mb-1.5">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                            <span>🔥 Due Within 48 Hours Progress</span>
+                        </span>
+                        <span id="progress-text" class="text-xs font-bold text-white">0 / 0 Completed (100%)</span>
+                    </div>
+                    <div class="w-full bg-slate-950/80 h-3 rounded-full overflow-hidden">
+                        <div id="progress-bar" class="bg-gradient-to-r from-amber-500 via-indigo-500 to-emerald-400 h-full transition-all duration-300" style="width: 100%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-4 sm:px-6 mt-4 relative z-10">
+        <div class="flex items-center justify-between flex-wrap gap-3 mb-5">
+            <div id="course-filters" class="flex items-center gap-2 flex-wrap"></div>
+            <label class="flex items-center gap-2 text-xs text-slate-100 cursor-pointer select-none glass-card px-3.5 py-1.5 rounded-full border shadow">
+                <input type="checkbox" id="hide-completed" checked onchange="toggleHideCompleted(this.checked)" class="rounded bg-slate-800 border-slate-500 text-indigo-600 focus:ring-0">
+                Hide completed tasks
+            </label>
+        </div>
+
+        <section id="view-checklist" class="space-y-3"></section>
+
+        <section id="view-calendar" class="hidden">
+            <div class="glass-card border rounded-xl overflow-hidden shadow-2xl">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-white/15">
+                    <h2 id="cal-month-title" class="text-lg font-bold text-white"></h2>
+                    <div class="flex items-center gap-2">
+                        <button onclick="changeMonth(-1)" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-sm">← Prev</button>
+                        <button onclick="resetToToday()" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-sm text-amber-300 font-medium">Today</button>
+                        <button onclick="changeMonth(1)" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-sm">Next →</button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-7 border-b border-white/15 bg-slate-900/70 text-center text-xs font-semibold uppercase tracking-wider text-slate-200 py-2.5">
+                    <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+                </div>
+                <div id="calendar-grid" class="grid grid-cols-7 divide-x divide-y divide-white/10 bg-slate-950/65"></div>
+            </div>
+        </section>
+    </main>
+
+    <!-- DEDICATED SEMI-TRANSPARENT SETTINGS PAGE OVERLAY -->
+    <div id="settings-page" class="fixed inset-0 bg-slate-950/55 backdrop-blur-md hidden z-40 overflow-y-auto p-4 sm:p-8">
+        <div class="max-w-3xl mx-auto bg-slate-900/75 border border-white/20 rounded-2xl p-5 sm:p-7 shadow-2xl space-y-6 my-4">
+            <div class="flex items-center justify-between border-b border-white/15 pb-4">
+                <div class="flex items-center gap-2.5">
+                    <span class="text-2xl">⚙️</span>
+                    <div>
+                        <h2 class="text-xl font-bold text-white">Command Center Settings</h2>
+                        <p class="text-xs text-slate-300">Customize your theme, box transparency, subject colors, course rules, and cloud sync</p>
+                    </div>
+                </div>
+                <button onclick="openSettingsPage(false)" class="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-sm font-semibold text-white transition">✕ Close</button>
+            </div>
+
+            <!-- Section 1: Visual & Distraction Controls (Opacity, Background Fade, Particles) -->
+            <div id="opacity-slider-section" class="bg-slate-950/85 border border-white/15 rounded-xl p-4 space-y-4 transition-all duration-150">
+                <!-- Slider A: Task Box Opacity -->
+                <div class="space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="text-sm font-bold text-white">🪟 Task Box Opacity</div>
+                            <div class="text-xs text-slate-300">Hold & slide to preview task box transparency live</div>
+                        </div>
+                        <span id="opacity-value-label" class="text-sm font-bold text-amber-300">68%</span>
+                    </div>
+                    <input id="card-opacity-slider" type="range" min="15" max="95" value="68"
+                        onmousedown="setOpacityPreviewMode(true)"
+                        onmouseup="setOpacityPreviewMode(false)"
+                        onmouseleave="setOpacityPreviewMode(false)"
+                        ontouchstart="setOpacityPreviewMode(true)"
+                        ontouchend="setOpacityPreviewMode(false)"
+                        oninput="updateCardOpacity(this.value, false)"
+                        onchange="updateCardOpacity(this.value, true); setOpacityPreviewMode(false)"
+                        class="w-full accent-indigo-500 cursor-pointer h-2 bg-slate-800 rounded-lg">
+                </div>
+
+                <!-- Slider B: Background Fade to Black (Distraction Level) -->
+                <div class="space-y-1.5 pt-3 border-t border-white/10">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="text-sm font-bold text-white">🌑 Background Fade to Black</div>
+                            <div class="text-xs text-slate-300">Dim the background scenery to reduce visual distraction</div>
+                        </div>
+                        <span id="bg-dim-value-label" class="text-sm font-bold text-amber-300">0%</span>
+                    </div>
+                    <input id="bg-dim-slider" type="range" min="0" max="95" value="0"
+                        onmousedown="setOpacityPreviewMode(true)"
+                        onmouseup="setOpacityPreviewMode(false)"
+                        onmouseleave="setOpacityPreviewMode(false)"
+                        ontouchstart="setOpacityPreviewMode(true)"
+                        ontouchend="setOpacityPreviewMode(false)"
+                        oninput="updateBgDim(this.value, false)"
+                        onchange="updateBgDim(this.value, true); setOpacityPreviewMode(false)"
+                        class="w-full accent-indigo-500 cursor-pointer h-2 bg-slate-800 rounded-lg">
+                </div>
+
+                <!-- Toggle C: Ambient Particles On/Off -->
+                <div class="flex items-center justify-between pt-3 border-t border-white/10">
+                    <div>
+                        <div class="text-sm font-bold text-white">✨ Floating Background Particles</div>
+                        <div class="text-xs text-slate-300">Toggle snow, leaves, petals, fireworks, and completion bursts</div>
+                    </div>
+                    <button id="particles-toggle-btn" type="button" onclick="toggleParticles()"
+                        class="px-3.5 py-1.5 rounded-xl text-xs font-bold border transition bg-emerald-600/30 border-emerald-400/50 text-emerald-200">
+                        ✨ Particles: ON
+                    </button>
+                </div>
+            </div>
+
+            <!-- Section 2: Seasonal & Holiday Theme Picker -->
+            <div class="bg-slate-950/65 border border-white/10 rounded-xl p-4 space-y-3">
+                <div class="text-sm font-bold text-white">🎨 Seasonal & Holiday Theme</div>
+                <button onclick="selectTheme('auto')" id="theme-btn-auto" class="w-full py-2 px-3.5 rounded-xl border border-indigo-500/40 bg-indigo-500/15 hover:bg-indigo-500/25 text-xs sm:text-sm font-semibold text-white flex items-center justify-between transition">
+                    <span>🔄 Automatic Seasonal Cycle (Default)</span>
+                    <span id="auto-detected-label" class="text-xs text-indigo-200 font-normal"></span>
+                </button>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <button onclick="selectTheme('winter')" class="theme-opt p-2.5 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-800 text-center transition" data-theme="winter">
+                        <div class="text-xl">❄️</div><div class="text-xs font-semibold text-white">Winter</div>
+                    </button>
+                    <button onclick="selectTheme('spring')" class="theme-opt p-2.5 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-800 text-center transition" data-theme="spring">
+                        <div class="text-xl">🌸</div><div class="text-xs font-semibold text-white">Spring</div>
+                    </button>
+                    <button onclick="selectTheme('summer')" class="theme-opt p-2.5 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-800 text-center transition" data-theme="summer">
+                        <div class="text-xl">☀️</div><div class="text-xs font-semibold text-white">Summer</div>
+                    </button>
+                    <button onclick="selectTheme('autumn')" class="theme-opt p-2.5 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-800 text-center transition" data-theme="autumn">
+                        <div class="text-xl">🍂</div><div class="text-xs font-semibold text-white">Autumn</div>
+                    </button>
+                    <button onclick="selectTheme('christmas')" class="theme-opt p-2.5 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-800 text-center transition" data-theme="christmas">
+                        <div class="text-xl">🎄</div><div class="text-xs font-semibold text-white">Christmas</div>
+                    </button>
+                    <button onclick="selectTheme('halloween')" class="theme-opt p-2.5 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-800 text-center transition" data-theme="halloween">
+                        <div class="text-xl">🎃</div><div class="text-xs font-semibold text-white">Halloween</div>
+                    </button>
+                    <button onclick="selectTheme('easter')" class="theme-opt p-2.5 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-800 text-center transition" data-theme="easter">
+                        <div class="text-xl">🐰</div><div class="text-xs font-semibold text-white">Easter</div>
+                    </button>
+                    <button onclick="selectTheme('july4')" class="theme-opt p-2.5 rounded-xl border border-slate-700 bg-slate-800/70 hover:bg-slate-800 text-center transition" data-theme="july4">
+                        <div class="text-xl">🎆</div><div class="text-xs font-semibold text-white">4th of July</div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Section 3: Subject Color Picker & Course Default Schedule Rules -->
+            <div class="bg-slate-950/65 border border-white/10 rounded-xl p-4 space-y-3">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                        <div class="text-sm font-bold text-white">🎨 Subject Colors & Schedule Rules</div>
+                        <div class="text-xs text-slate-300">Assign a custom badge color, date shift, and default due time for each course</div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-slate-300">Global Fallback Time:</span>
+                        <input id="global-default-time-input" type="time" value="22:00" class="bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white">
+                    </div>
+                </div>
+
+                <div id="course-rules-list" class="space-y-3 max-h-[340px] overflow-y-auto pr-1 custom-scroll"></div>
+
+                <div class="flex items-center justify-between pt-2">
+                    <button onclick="resetAllCourseRules()" class="text-xs text-slate-400 hover:text-rose-400 underline">Reset rules & colors to defaults</button>
+                    <button onclick="saveRulesFromModal()" class="px-4 py-2 rounded-xl theme-accent-bg text-white text-xs sm:text-sm font-semibold shadow">💾 Save Colors & Course Rules</button>
+                </div>
+            </div>
+
+            <!-- Section 4: Two-Way Cloud Sync -->
+            <div class="bg-slate-950/65 border border-white/10 rounded-xl p-4 space-y-3">
+                <div class="text-sm font-bold text-white">☁️ Two-Way GitHub Cloud Sync</div>
+                <p class="text-xs text-slate-300">Paste your GitHub Personal Access Token (<code>ghp_...</code>) once on each device to sync completed checkboxes, colors, opacity, and rules.</p>
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <input id="github-token-input" type="password" placeholder="ghp_..." class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                    <button onclick="saveSyncToken()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold">Save Token & Sync</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 1: Add Custom Task -->
+    <div id="task-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl">
+            <h3 class="text-lg font-bold text-white mb-4">Add Custom Assignment</h3>
+            <div class="space-y-3">
+                <div>
+                    <label class="text-xs text-slate-400 block mb-1">Course Name</label>
+                    <input id="custom-course" type="text" placeholder="e.g. Foundations of Ethics" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 block mb-1">Assignment Title</label>
+                    <input id="custom-title" type="text" placeholder="e.g. Read Scotus pp. 252-282" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs text-slate-400 block mb-1">Due Date</label>
+                        <input id="custom-date" type="date" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                    </div>
+                    <div>
+                        <label class="text-xs text-slate-400 block mb-1">Time of Day</label>
+                        <input id="custom-time" type="time" value="22:00" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 block mb-1">Details / Notes</label>
+                    <input id="custom-details" type="text" placeholder="e.g. Bring notes to class" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button onclick="toggleModal(false)" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-sm">Cancel</button>
+                <button onclick="addCustomTask()" class="px-4 py-2 rounded-lg theme-accent-bg text-white text-sm font-medium">Save Task</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Edit Single Task Date & Time -->
+    <div id="edit-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl">
+            <h3 class="text-lg font-bold text-white mb-1">✏️ Edit Task Date & Time</h3>
+            <p id="edit-task-subtitle" class="text-xs text-indigo-400 font-medium mb-4 truncate"></p>
+            <input type="hidden" id="edit-task-id">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-xs text-slate-400 block mb-1">New Date</label>
+                    <input id="edit-date-input" type="date" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                </div>
+                <div>
+                    <label class="text-xs text-slate-400 block mb-1">Time of Day</label>
+                    <input id="edit-time-input" type="time" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                </div>
+            </div>
+            <div class="flex items-center justify-between mt-6">
+                <button onclick="resetTaskSchedule()" class="text-xs text-slate-400 hover:text-rose-400 underline">Reset to course rule</button>
+                <div class="flex gap-2">
+                    <button onclick="toggleEditModal(false)" class="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-sm">Cancel</button>
+                    <button onclick="saveTaskSchedule()" class="px-4 py-2 rounded-lg theme-accent-bg text-white text-sm font-medium">Save & Sync</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const BOT_ASSIGNMENTS = __ASSIGNMENTS_JSON__;
+        const GH_USER = "__GH_USER__";
+        const GH_REPO = "__GH_REPO__";
+
+        let completedIds = JSON.parse(localStorage.getItem('hw_completed_ids') || '{}');
+        let taskOverrides = JSON.parse(localStorage.getItem('hw_task_overrides') || '{}');
+        let customTasks = JSON.parse(localStorage.getItem('hw_custom_tasks') || '[]');
+        let globalDefaultTime = localStorage.getItem('hw_global_default_time') || '22:00';
+        let courseRules = JSON.parse(localStorage.getItem('hw_course_rules') || '{}');
+        let courseColors = JSON.parse(localStorage.getItem('hw_course_colors') || '{}');
+        let themePreference = localStorage.getItem('hw_theme_pref') || 'auto';
+        let cardOpacity = parseInt(localStorage.getItem('hw_card_opacity') || '68', 10);
+        // Default "Hide completed tasks" to ON (true) unless explicitly turned off
+        let hideCompleted = localStorage.getItem('hw_hide_completed') !== 'false';
+
+        let activeCourse = 'ALL';
+        let currentView = 'checklist';
+
+        const today = new Date();
+        let calYear = today.getFullYear();
+        let calMonth = today.getMonth();
+
+        // =====================================================================
+        // SEASONAL & HOLIDAY IMMERSIVE ENGINE + ENCOURAGING REWARDS
+        // =====================================================================
+        const THEMES = {
+            winter: {
+                name: 'Winter Wonderland', icon: '❄️',
+                bgTop: '#071326', bgBottom: '#1d3b5c', cardRgb: '12, 25, 48',
+                cardBorder: 'rgba(186, 230, 253, 0.25)', accent: '#0ea5e9', accentHover: '#0284c7',
+                burstColors: ['#ffffff', '#bae6fd', '#38bdf8', '#e0f2fe'],
+                messages: [
+                    '❄️ Snow-stoppable! Another assignment knocked out cold!',
+                    '⛄ Chill out—you just crushed that task!',
+                    '🎿 Smooth gliding! One less thing on your winter list!'
+                ]
+            },
+            christmas: {
+                name: 'Cozy Christmas Room', icon: '🎄',
+                bgTop: '#24110b', bgBottom: '#3b180e', cardRgb: '28, 16, 12',
+                cardBorder: 'rgba(253, 224, 71, 0.28)', accent: '#dc2626', accentHover: '#b91c1c',
+                burstColors: ['#ef4444', '#22c55e', '#facc15', '#ffffff'],
+                messages: [
+                    '🎄 Cozy work! Grab some hot cocoa by the fire!',
+                    '🎅 Santa just put you at the top of the Nice List!',
+                    '🎁 Wrapped up and done! Enjoy the warm Christmas glow!'
+                ]
+            },
+            halloween: {
+                name: 'Halloween Night', icon: '🎃',
+                bgTop: '#0f051d', bgBottom: '#2b1105', cardRgb: '22, 10, 36',
+                cardBorder: 'rgba(251, 146, 60, 0.30)', accent: '#f97316', accentHover: '#ea580c',
+                burstColors: ['#f97316', '#a855f7', '#facc15', '#22c55e'],
+                messages: [
+                    '🎃 Spooktacular job! That homework didn’t scare you!',
+                    '👻 Boo-yah! Another assignment banished to the shadows!',
+                    '🍬 All treats, no tricks—great work finishing that!'
+                ]
+            },
+            easter: {
+                name: 'Easter Egg Hunt', icon: '🐰',
+                bgTop: '#172554', bgBottom: '#065f46', cardRgb: '23, 37, 84',
+                cardBorder: 'rgba(244, 114, 182, 0.30)', accent: '#ec4899', accentHover: '#db2777',
+                burstColors: ['#f472b6', '#facc15', '#34d399', '#a78bfa'],
+                messages: [
+                    '🐰 Egg-cellent work! Hopping right through your list!',
+                    '🌷 Blooming awesome! Another task in the basket!',
+                    '🐣 Springing ahead! You made that look easy!'
+                ]
+            },
+            july4: {
+                name: '4th of July', icon: '🎆',
+                bgTop: '#04091a', bgBottom: '#172554', cardRgb: '10, 18, 44',
+                cardBorder: 'rgba(248, 113, 113, 0.28)', accent: '#ef4444', accentHover: '#dc2626',
+                burstColors: ['#ef4444', '#ffffff', '#3b82f6', '#facc15'],
+                messages: [
+                    '🎆 Boom! Fireworks for finishing that assignment!',
+                    '🗽 Sweet land of liberty—one less task to do!',
+                    '🎇 Sparkling effort! You’re lighting up the scoreboard!'
+                ]
+            },
+            spring: {
+                name: 'Spring Meadow', icon: '🌸',
+                bgTop: '#0c2e36', bgBottom: '#14532d', cardRgb: '14, 38, 34',
+                cardBorder: 'rgba(249, 168, 212, 0.28)', accent: '#10b981', accentHover: '#059669',
+                burstColors: ['#fbcfe8', '#f472b6', '#4ade80', '#fde047'],
+                messages: [
+                    '🌸 Fresh breeze! Your productivity is in full bloom!',
+                    '🪁 Flying high! Another assignment checked off!',
+                    '🌿 Springing forward—awesome job staying on top of it!'
+                ]
+            },
+            summer: {
+                name: 'Golden Summer Beach', icon: '☀️',
+                bgTop: '#b45309', bgBottom: '#0369a1', cardRgb: '14, 42, 64',
+                cardBorder: 'rgba(253, 224, 71, 0.38)', accent: '#f59e0b', accentHover: '#d97706',
+                burstColors: ['#fde047', '#f97316', '#38bdf8', '#fb7185'],
+                messages: [
+                    '☀️ Sunny spike! Ace on that assignment!',
+                    '🏖️ Golden effort! One step closer to beach time!',
+                    '🌊 Riding the wave! You crushed that task!'
+                ]
+            },
+            autumn: {
+                name: 'Autumn Harvest', icon: '🍂',
+                bgTop: '#1f0e06', bgBottom: '#451a03', cardRgb: '34, 16, 8',
+                cardBorder: 'rgba(251, 146, 60, 0.28)', accent: '#d97706', accentHover: '#b45309',
+                burstColors: ['#ea580c', '#f59e0b', '#dc2626', '#fde047'],
+                messages: [
+                    '🍂 Raking in the wins! Time for warm apple cider!',
+                    '🎃 Harvested and done! Great focus today!',
+                    '🍁 Falling leaves, rising grades—awesome job!'
+                ]
+            }
+        };
+
+        function getEasterDate(year) {
+            const a = year % 19, b = Math.floor(year / 100), c = year % 100;
+            const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+            const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+            const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
+            const m = Math.floor((a + 11 * h + 22 * l) / 451);
+            const month = Math.floor((h + l - 7 * m + 114) / 31);
+            const day = ((h + l - 7 * m + 114) % 31) + 1;
+            return new Date(year, month - 1, day);
+        }
+
+        function detectSeasonalTheme(dateObj = new Date()) {
+            const y = dateObj.getFullYear(), m = dateObj.getMonth() + 1, d = dateObj.getDate();
+            if (m === 12) return 'christmas';
+            if ((m === 10 && d >= 15) || (m === 11 && d === 1)) return 'halloween';
+            if (m === 7 && d >= 1 && d <= 7) return 'july4';
+            const easter = getEasterDate(y);
+            const diffDays = Math.round((dateObj - easter) / 86400000);
+            if (diffDays >= -7 && diffDays <= 2) return 'easter';
+            if (m === 1 || m === 2) return 'winter';
+            if (m >= 3 && m <= 5) return 'spring';
+            if (m >= 6 && m <= 8) return 'summer';
+            return 'autumn';
+        }
+
+        function getActiveThemeKey() {
+            return (themePreference === 'auto' || !THEMES[themePreference])
+                ? detectSeasonalTheme()
+                : themePreference;
+        }
+
+        // Reusable Realistic Multi-Layered Fire SVG Group (Used in Desktop & Mobile Christmas)
+        function buildRealisticFireGroup() {
+            return `
+            <defs>
+                <linearGradient id="realFlameOuter" x1="0%" y1="100%" x2="0%" y2="0%">
+                    <stop offset="0%" stop-color="#991b1b" stop-opacity="0.95"/>
+                    <stop offset="45%" stop-color="#ea580c" stop-opacity="0.9"/>
+                    <stop offset="100%" stop-color="#f97316" stop-opacity="0.1"/>
+                </linearGradient>
+                <linearGradient id="realFlameMid" x1="0%" y1="100%" x2="0%" y2="0%">
+                    <stop offset="0%" stop-color="#ea580c" stop-opacity="0.95"/>
+                    <stop offset="55%" stop-color="#f59e0b" stop-opacity="0.95"/>
+                    <stop offset="100%" stop-color="#fde047" stop-opacity="0.2"/>
+                </linearGradient>
+                <linearGradient id="realFlameCore" x1="0%" y1="100%" x2="0%" y2="0%">
+                    <stop offset="0%" stop-color="#facc15" stop-opacity="1"/>
+                    <stop offset="65%" stop-color="#fef08a" stop-opacity="0.95"/>
+                    <stop offset="100%" stop-color="#ffffff" stop-opacity="0.4"/>
+                </linearGradient>
+                <filter id="softFlameBlur" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="3.5"/>
+                </filter>
+            </defs>
+            <!-- Soft Ambient Firebox Back Glow -->
+            <ellipse cx="170" cy="415" rx="95" ry="75" fill="#ea580c" opacity="0.32" filter="url(#softFlameBlur)" class="hearth-glow"/>
+            <!-- Back Wide Crimson/Orange Flame Tongue -->
+            <path class="flame-w1" filter="url(#softFlameBlur)" fill="url(#realFlameOuter)"
+                d="M92,452 C82,395 108,350 132,312 C136,338 148,325 154,280 C168,242 182,258 188,295 C198,270 212,285 214,322 C232,305 252,368 248,452 Z"/>
+            <!-- Left & Right Dancing Orange Tongues -->
+            <path class="flame-w2" fill="url(#realFlameMid)"
+                d="M106,452 C98,402 118,358 142,318 C148,348 162,332 168,288 C178,328 192,355 186,452 Z"/>
+            <path class="flame-w3" fill="url(#realFlameMid)"
+                d="M152,452 C148,388 168,332 184,278 C196,318 208,348 216,320 C228,358 238,402 232,452 Z"/>
+            <!-- Bright Golden-White Inner Core Tongues -->
+            <path class="flame-w2" fill="url(#realFlameCore)"
+                d="M126,452 C122,412 138,378 158,342 C166,372 178,355 184,325 C196,368 212,408 208,452 Z"/>
+            <path class="flame-w1" fill="#fef9c3" opacity="0.9"
+                d="M148,452 C146,422 158,395 170,368 C182,395 192,422 190,452 Z"/>
+            <!-- Rising Sparks -->
+            <circle cx="148" cy="340" r="2.8" fill="#fef08a" class="ember-1"/>
+            <circle cx="192" cy="330" r="2.4" fill="#fdba74" class="ember-2"/>
+            <circle cx="170" cy="315" r="2" fill="#fef9c3" class="ember-1"/>
+            <!-- Glowing Red-Orange Coal Bed Under Logs -->
+            <ellipse cx="170" cy="456" rx="84" ry="13" fill="#ef4444" class="coal-bed"/>
+            <ellipse cx="170" cy="456" rx="62" ry="8" fill="#fde047" class="coal-bed"/>
+            `;
+        }
+
+        function buildScenerySvg(themeKey) {
+            if (themeKey === 'christmas') {
+                return `
+                <svg viewBox="0 0 1440 900" class="w-full h-full" preserveAspectRatio="xMidYMid slice">
+                    <defs>
+                        <radialGradient id="roomWarmth" cx="22%" cy="68%" r="60%">
+                            <stop offset="0%" stop-color="#f97316" stop-opacity="0.32"/>
+                            <stop offset="50%" stop-color="#facc15" stop-opacity="0.12"/>
+                            <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+                        </radialGradient>
+                    </defs>
+                    <rect x="0" y="0" width="1440" height="630" fill="#2c130d" opacity="0.55"/>
+                    <g stroke="#3f1d14" stroke-width="2" opacity="0.35">
+                        <line x1="120" y1="0" x2="120" y2="630"/><line x1="240" y1="0" x2="240" y2="630"/>
+                        <line x1="360" y1="0" x2="360" y2="630"/><line x1="480" y1="0" x2="480" y2="630"/>
+                        <line x1="960" y1="0" x2="960" y2="630"/><line x1="1080" y1="0" x2="1080" y2="630"/>
+                        <line x1="1200" y1="0" x2="1200" y2="630"/><line x1="1320" y1="0" x2="1320" y2="630"/>
+                    </g>
+                    <rect x="0" y="520" width="1440" height="120" fill="#3b1a10" stroke="#240e07" stroke-width="4"/>
+                    <rect x="0" y="640" width="1440" height="260" fill="#210d07"/>
+                    <rect x="0" y="0" width="1440" height="900" fill="url(#roomWarmth)" class="hearth-glow"/>
+
+                    <!-- Frosted Window Looking Out at Snowy Night -->
+                    <g transform="translate(470, 110)">
+                        <rect x="0" y="0" width="320" height="330" rx="8" fill="#0b1d3a" stroke="#451a03" stroke-width="14"/>
+                        <circle cx="250" cy="65" r="24" fill="#fef08a" opacity="0.8"/>
+                        <path d="M7,245 Q110,200 210,240 T313,225 L313,323 L7,323 Z" fill="#e2e8f0" opacity="0.85"/>
+                        <polygon points="75,145 40,235 110,235" fill="#1e3a5f"/>
+                        <polygon points="75,115 48,185 102,185" fill="#f8fafc" opacity="0.85"/>
+                        <line x1="160" y1="0" x2="160" y2="330" stroke="#451a03" stroke-width="10"/>
+                        <line x1="0" y1="165" x2="320" y2="165" stroke="#451a03" stroke-width="10"/>
+                        <path d="M-20,-10 L55,-10 Q35,160 65,345 L-20,345 Z" fill="#991b1b"/>
+                        <path d="M340,-10 L265,-10 Q285,160 255,345 L340,345 Z" fill="#991b1b"/>
+                        <circle cx="160" cy="115" r="34" fill="none" stroke="#15803d" stroke-width="14"/>
+                        <circle cx="160" cy="82" r="7" fill="#dc2626"/>
+                    </g>
+
+                    <!-- Draped Ceiling Pine Garland & Fairy Lights -->
+                    <g>
+                        <path d="M-20,55 Q180,135 360,65 Q540,135 720,65 Q900,135 1080,65 Q1260,135 1460,55" stroke="#14532d" stroke-width="26" fill="none" stroke-linecap="round"/>
+                        <circle cx="140" cy="94" r="6" fill="#fef08a" class="light-1"/>
+                        <circle cx="260" cy="88" r="6" fill="#ef4444" class="light-2"/>
+                        <circle cx="360" cy="68" r="7" fill="#fde047" class="light-3"/>
+                        <circle cx="510" cy="96" r="6" fill="#4ade80" class="light-1"/>
+                        <circle cx="720" cy="68" r="7" fill="#ef4444" class="light-3"/>
+                        <circle cx="880" cy="96" r="6" fill="#fde047" class="light-1"/>
+                        <circle cx="1080" cy="68" r="7" fill="#fef08a" class="light-3"/>
+                        <circle cx="1250" cy="96" r="6" fill="#ef4444" class="light-1"/>
+                    </g>
+
+                    <ellipse cx="380" cy="765" rx="340" ry="68" fill="#7f1d1d" stroke="#b91c1c" stroke-width="8"/>
+                    <ellipse cx="380" cy="765" rx="260" ry="46" fill="#991b1b" stroke="#fde047" stroke-width="3" stroke-dasharray="12 8"/>
+
+                    <!-- Stone & Brick Fireplace with Realistic Layered Fire -->
+                    <g transform="translate(45, 190)">
+                        <rect x="35" y="-190" width="270" height="220" fill="#572415" stroke="#36140a" stroke-width="4"/>
+                        <rect x="95" y="-145" width="150" height="95" rx="4" fill="#1e293b" stroke="#d97706" stroke-width="6"/>
+                        <path d="M105,-75 Q140,-105 180,-75 T235,-85 L235,-56 L105,-56 Z" fill="#e2e8f0"/>
+                        <circle cx="195" cy="-115" r="10" fill="#fde047"/>
+                        <rect x="0" y="30" width="340" height="460" rx="6" fill="#7c2d12" stroke="#431407" stroke-width="4"/>
+                        <rect x="-22" y="12" width="384" height="28" rx="6" fill="#451a03" stroke="#290f02" stroke-width="3"/>
+                        <path d="M-10,36 Q85,78 170,36 Q255,78 350,36" stroke="#15803d" stroke-width="14" fill="none" stroke-linecap="round"/>
+                        <g transform="translate(65, 42)"><path d="M0,0 L0,52 Q0,68 18,68 L30,68 Q40,68 40,56 L22,48 L22,0 Z" fill="#dc2626"/><rect x="-4" y="-4" width="30" height="12" rx="4" fill="#f8fafc"/></g>
+                        <g transform="translate(155, 42)"><path d="M0,0 L0,52 Q0,68 18,68 L30,68 Q40,68 40,56 L22,48 L22,0 Z" fill="#16a34a"/><rect x="-4" y="-4" width="30" height="12" rx="4" fill="#f8fafc"/></g>
+                        <g transform="translate(245, 42)"><path d="M0,0 L0,52 Q0,68 18,68 L30,68 Q40,68 40,56 L22,48 L22,0 Z" fill="#dc2626"/><rect x="-4" y="-4" width="30" height="12" rx="4" fill="#f8fafc"/></g>
+
+                        <!-- Firebox + Realistic Fire -->
+                        <path d="M48,490 L48,255 Q170,195 292,255 L292,490 Z" fill="#090403" stroke="#290f02" stroke-width="6"/>
+                        ${buildRealisticFireGroup()}
+                        <!-- Firewood Logs & Grate -->
+                        <rect x="82" y="444" width="175" height="22" rx="10" fill="#3b1606" stroke="#1f0a02" stroke-width="2" transform="rotate(-5 170 454)"/>
+                        <rect x="85" y="448" width="170" height="22" rx="10" fill="#451a03" stroke="#1f0a02" stroke-width="2" transform="rotate(6 170 458)"/>
+                    </g>
+
+                    <!-- Armchair, Sleeping Cat & Hot Cocoa -->
+                    <g transform="translate(430, 515)">
+                        <rect x="20" y="0" width="150" height="155" rx="28" fill="#1e3a5f" stroke="#0f2942" stroke-width="3"/>
+                        <rect x="0" y="75" width="42" height="95" rx="16" fill="#1d4ed8"/>
+                        <rect x="148" y="75" width="42" height="95" rx="16" fill="#1d4ed8"/>
+                        <rect x="28" y="105" width="134" height="55" rx="14" fill="#2563eb"/>
+                        <ellipse cx="95" cy="112" rx="28" ry="16" fill="#ea580c"/>
+                        <circle cx="74" cy="108" r="11" fill="#ea580c"/>
+                        <rect x="210" y="105" width="70" height="12" rx="4" fill="#78350f"/>
+                        <rect x="225" y="117" width="10" height="65" fill="#451a03"/>
+                        <rect x="255" y="117" width="10" height="65" fill="#451a03"/>
+                        <rect x="234" y="80" width="22" height="25" rx="4" fill="#dc2626"/>
+                        <path d="M241,74 Q238,64 244,56" stroke="#e2e8f0" stroke-width="2" fill="none" class="steam-1"/>
+                        <path d="M249,74 Q252,64 246,56" stroke="#e2e8f0" stroke-width="2" fill="none" class="steam-2"/>
+                    </g>
+
+                    <!-- Christmas Tree & Presents -->
+                    <g transform="translate(980, 95)">
+                        <rect x="175" y="545" width="56" height="75" fill="#451a03"/>
+                        <polygon points="203,45 65,240 340,240" fill="#14532d"/>
+                        <polygon points="203,145 35,365 370,365" fill="#166534"/>
+                        <polygon points="203,255 5,475 400,475" fill="#15803d"/>
+                        <polygon points="203,355 -25,565 430,565" fill="#14532d"/>
+                        <path d="M125,185 Q203,235 285,190" stroke="#facc15" stroke-width="4" stroke-dasharray="8 6" fill="none"/>
+                        <path d="M85,305 Q203,370 325,310" stroke="#facc15" stroke-width="4" stroke-dasharray="8 6" fill="none"/>
+                        <path d="M45,425 Q203,505 365,430" stroke="#facc15" stroke-width="4.5" stroke-dasharray="8 6" fill="none"/>
+                        <polygon points="203,0 214,24 240,24 219,39 227,64 203,48 179,64 187,39 166,24 192,24" fill="#facc15"/>
+                        <circle cx="165" cy="145" r="8" fill="#ef4444" class="light-1"/>
+                        <circle cx="235" cy="168" r="7" fill="#fde047" class="light-2"/>
+                        <circle cx="135" cy="255" r="9" fill="#38bdf8" class="light-3"/>
+                        <circle cx="205" cy="275" r="8" fill="#f43f5e" class="light-1"/>
+                        <circle cx="275" cy="250" r="9" fill="#a855f7" class="light-2"/>
+                        <circle cx="95" cy="385" r="9" fill="#fde047" class="light-3"/>
+                        <circle cx="175" cy="395" r="10" fill="#ef4444" class="light-2"/>
+                        <circle cx="255" cy="375" r="9" fill="#4ade80" class="light-1"/>
+                        <g transform="translate(10, 545)">
+                            <rect x="0" y="25" width="75" height="60" rx="4" fill="#dc2626"/>
+                            <rect x="33" y="25" width="10" height="60" fill="#facc15"/>
+                            <rect x="65" y="42" width="62" height="45" rx="4" fill="#2563eb"/>
+                            <rect x="245" y="20" width="84" height="65" rx="4" fill="#16a34a"/>
+                            <rect x="315" y="40" width="68" height="48" rx="4" fill="#9333ea"/>
+                        </g>
+                    </g>
+                </svg>`;
+            }
+
+            if (themeKey === 'summer') {
+                return `
+                <svg viewBox="0 0 1440 900" class="w-full h-full" preserveAspectRatio="xMidYMid slice">
+                    <defs>
+                        <radialGradient id="goldenSunGlow" cx="82%" cy="18%" r="55%">
+                            <stop offset="0%" stop-color="#fef08a" stop-opacity="0.75"/>
+                            <stop offset="40%" stop-color="#f59e0b" stop-opacity="0.35"/>
+                            <stop offset="100%" stop-color="#0284c7" stop-opacity="0"/>
+                        </radialGradient>
+                    </defs>
+                    <!-- Warm Golden Sunlight Overlay -->
+                    <rect x="0" y="0" width="1440" height="900" fill="url(#goldenSunGlow)"/>
+
+                    <!-- Blazing Golden Sun in Upper Right -->
+                    <g transform="translate(1190, 155)">
+                        <circle cx="0" cy="0" r="88" fill="#fef08a" opacity="0.28"/>
+                        <circle cx="0" cy="0" r="58" fill="#fde047"/>
+                        <g class="sun-rays" stroke="#fef08a" stroke-width="6" stroke-linecap="round" opacity="0.75">
+                            <line x1="0" y1="-92" x2="0" y2="-70"/><line x1="0" y1="70" x2="0" y2="92"/>
+                            <line x1="-92" y1="0" x2="-70" y2="0"/><line x1="70" y1="0" x2="92" y2="0"/>
+                            <line x1="-64" y1="-64" x2="-48" y2="-48"/><line x1="48" y1="48" x2="64" y2="64"/>
+                            <line x1="64" y1="-64" x2="48" y2="-48"/><line x1="-48" y1="48" x2="-64" y2="64"/>
+                        </g>
+                    </g>
+
+                    <!-- Turquoise Ocean (Y: 445..615) -->
+                    <rect x="0" y="445" width="1440" height="190" fill="#0284c7" opacity="0.75"/>
+                    <path d="M0,515 Q360,498 720,515 T1440,510" stroke="#bae6fd" stroke-width="4" fill="none" opacity="0.65"/>
+                    <path d="M0,565 Q360,548 720,565 T1440,560" stroke="#e0f2fe" stroke-width="3" fill="none" opacity="0.55"/>
+
+                    <!-- Lush Green Grassy Coastal Park & Dunes Next to the Beach! -->
+                    <path d="M0,545 Q280,520 560,585 L560,900 L0,900 Z" fill="#16a34a" opacity="0.88"/>
+                    <path d="M1020,575 Q1240,525 1440,545 L1440,900 L1020,900 Z" fill="#15803d" opacity="0.85"/>
+                    <!-- Golden Sandy Beach Sweeping Across Center & Foreground -->
+                    <path d="M0,645 Q420,565 880,605 T1440,625 L1440,900 L0,900 Z" fill="#fbbf24" opacity="0.85"/>
+                    <path d="M0,695 Q520,635 1040,675 T1440,670 L1440,900 L0,900 Z" fill="#f59e0b" opacity="0.65"/>
+
+                    <!-- Palm Trees on Grassy Bluff -->
+                    <g transform="translate(55, 220)">
+                        <path d="M45,355 Q85,200 60,80" stroke="#78350f" stroke-width="18" stroke-linecap="round" fill="none"/>
+                        <path d="M60,80 Q-20,50 -45,100" stroke="#15803d" stroke-width="14" stroke-linecap="round" fill="none"/>
+                        <path d="M60,80 Q15,15 -30,35" stroke="#22c55e" stroke-width="14" stroke-linecap="round" fill="none"/>
+                        <path d="M60,80 Q135,25 165,75" stroke="#15803d" stroke-width="14" stroke-linecap="round" fill="none"/>
+                        <path d="M60,80 Q140,75 155,125" stroke="#22c55e" stroke-width="14" stroke-linecap="round" fill="none"/>
+                    </g>
+
+                    <!-- OCEAN PEOPLE: Surfer + Person on Pink Flamingo Float + Swimmers + Sailboat -->
+                    <g class="surfer" transform="translate(460, 480)">
+                        <path d="M-30,38 Q25,18 65,38" stroke="#7dd3fc" stroke-width="7" fill="none"/>
+                        <ellipse cx="22" cy="34" rx="28" ry="6" fill="#f43f5e"/>
+                        <circle cx="22" cy="6" r="8" fill="#fed7aa"/>
+                        <path d="M16,14 L28,14 L30,32 L14,32 Z" fill="#0ea5e9"/>
+                    </g>
+                    <!-- Person Floating on Pink Flamingo Inner Tube -->
+                    <g class="float-tube" transform="translate(740, 520)">
+                        <ellipse cx="26" cy="24" rx="24" ry="9" fill="#f472b6" stroke="#db2777" stroke-width="2"/>
+                        <path d="M46,20 Q54,4 44,2 Q38,2 40,8" stroke="#f472b6" stroke-width="5" fill="none" stroke-linecap="round"/>
+                        <circle cx="24" cy="14" r="7.5" fill="#fed7aa"/>
+                        <rect x="17" y="10" width="14" height="3" fill="#1e293b"/>
+                    </g>
+                    <!-- Swimmers in Water -->
+                    <g transform="translate(615, 535)">
+                        <circle cx="10" cy="8" r="7" fill="#fed7aa"/>
+                        <path d="M0,16 Q10,12 20,16" stroke="#bae6fd" stroke-width="3" fill="none"/>
+                        <circle cx="38" cy="11" r="6.5" fill="#fed7aa"/>
+                    </g>
+
+                    <!-- GRASS PARK PEOPLE (Left): Friends Having a Summer Picnic & Acoustic Guitar -->
+                    <g transform="translate(155, 560)">
+                        <polygon points="0,35 120,35 138,56 -18,56" fill="#ef4444" stroke="#fef08a" stroke-width="3"/>
+                        <circle cx="28" cy="8" r="9.5" fill="#fed7aa"/>
+                        <path d="M16,18 L40,18 L44,44 L12,44 Z" fill="#2563eb"/>
+                        <circle cx="88" cy="10" r="9.5" fill="#fed7aa"/>
+                        <path d="M76,20 L100,20 L104,44 L72,44 Z" fill="#ec4899"/>
+                        <!-- Umbrella over Picnic -->
+                        <line x1="58" y1="-35" x2="58" y2="42" stroke="#f8fafc" stroke-width="4"/>
+                        <path d="M5,-28 Q58,-68 112,-28 Z" fill="#10b981" stroke="#ffffff" stroke-width="2"/>
+                    </g>
+
+                    <!-- BEACH PEOPLE (Center-Left): Sunbathers on Towels & Two Kids Building Sandcastle -->
+                    <g transform="translate(340, 675)">
+                        <!-- Striped Beach Towel & Sunbather -->
+                        <polygon points="0,28 85,28 96,46 -10,46" fill="#38bdf8" stroke="#f8fafc" stroke-width="2"/>
+                        <circle cx="22" cy="24" r="8" fill="#fed7aa"/>
+                        <rect x="32" y="22" width="38" height="12" rx="5" fill="#ef4444"/>
+                        <!-- Two Kids Building Multi-Tower Sandcastle -->
+                        <g transform="translate(145, -10)">
+                            <circle cx="12" cy="16" r="8.5" fill="#fed7aa"/>
+                            <path d="M2,25 L22,25 L25,48 L0,48 Z" fill="#a855f7"/>
+                            <rect x="42" y="25" width="46" height="24" fill="#d97706"/>
+                            <rect x="52" y="10" width="26" height="18" fill="#b45309"/>
+                            <polygon points="65,-2 52,10 78,10" fill="#ef4444"/>
+                            <circle cx="108" cy="18" r="8.5" fill="#fed7aa"/>
+                            <path d="M98,27 L118,27 L120,48 L96,48 Z" fill="#10b981"/>
+                        </g>
+                    </g>
+
+                    <!-- BEACH VOLLEYBALL MATCH WITH PARABOLIC BALL & JUMPING PLAYERS (Right Beach) -->
+                    <g transform="translate(880, 635)">
+                        <!-- Net Posts & Mesh -->
+                        <line x1="115" y1="5" x2="115" y2="88" stroke="#f8fafc" stroke-width="4"/>
+                        <rect x="108" y="8" width="14" height="38" fill="none" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="4 4"/>
+                        <!-- Left Team (Player Jumping & Bumping + Teammate) -->
+                        <g class="vp-left" transform="translate(22, 18)">
+                            <circle cx="18" cy="10" r="10" fill="#fed7aa"/>
+                            <path d="M8,22 L28,22 L31,54 L5,54 Z" fill="#ef4444"/>
+                            <line x1="12" y1="54" x2="8" y2="74" stroke="#fed7aa" stroke-width="5" stroke-linecap="round"/>
+                            <line x1="24" y1="54" x2="28" y2="74" stroke="#fed7aa" stroke-width="5" stroke-linecap="round"/>
+                            <line class="vp-arm-left" x1="24" y1="26" x2="44" y2="12" stroke="#fed7aa" stroke-width="5" stroke-linecap="round"/>
+                        </g>
+                        <!-- Left Teammate Ready -->
+                        <g transform="translate(-32, 28)">
+                            <circle cx="16" cy="10" r="9.5" fill="#fed7aa"/>
+                            <path d="M6,21 L26,21 L28,50 L4,50 Z" fill="#f97316"/>
+                        </g>
+                        <!-- Right Team (Player Jumping & Spiking + Teammate) -->
+                        <g class="vp-right" transform="translate(172, 18)">
+                            <circle cx="18" cy="10" r="10" fill="#fed7aa"/>
+                            <path d="M8,22 L28,22 L31,54 L5,54 Z" fill="#2563eb"/>
+                            <line x1="12" y1="54" x2="8" y2="74" stroke="#fed7aa" stroke-width="5" stroke-linecap="round"/>
+                            <line x1="24" y1="54" x2="28" y2="74" stroke="#fed7aa" stroke-width="5" stroke-linecap="round"/>
+                            <line class="vp-arm-right" x1="12" y1="26" x2="-8" y2="12" stroke="#fed7aa" stroke-width="5" stroke-linecap="round"/>
+                        </g>
+                        <!-- Right Spectacular Cheering on Grass Bluff -->
+                        <g transform="translate(245, -15)">
+                            <circle cx="16" cy="10" r="9.5" fill="#fed7aa"/>
+                            <path d="M6,21 L26,21 L28,52 L4,52 Z" fill="#10b981"/>
+                            <line x1="8" y1="24" x2="-4" y2="4" stroke="#fed7aa" stroke-width="4.5" stroke-linecap="round" class="cheer-arm"/>
+                            <line x1="24" y1="24" x2="36" y2="4" stroke="#fed7aa" stroke-width="4.5" stroke-linecap="round" class="cheer-arm"/>
+                        </g>
+                        <!-- True Parabolic Volleyball (Nested X Linear + Y Gravity Bounce) -->
+                        <g transform="translate(48, 22)">
+                            <g class="vball-x">
+                                <g class="vball-y">
+                                    <circle cx="0" cy="0" r="10" fill="#ffffff" stroke="#f59e0b" stroke-width="2.5"/>
+                                    <path d="M-7,-5 Q0,2 7,-5 M-8,3 Q0,8 8,3" stroke="#3b82f6" stroke-width="1.8" fill="none"/>
+                                </g>
+                            </g>
+                        </g>
+                    </g>
+                </svg>`;
+            }
+
+            if (themeKey === 'july4') {
+                return `
+                <svg viewBox="0 0 1440 900" class="w-full h-full" preserveAspectRatio="xMidYMid slice">
+                    <path d="M0,520 Q280,430 620,505 T1440,475 L1440,900 L0,900 Z" fill="#0b1536" opacity="0.8"/>
+                    <g fill="#060c21" transform="translate(0, 415)">
+                        <rect x="280" y="45" width="45" height="70"/><rect x="330" y="20" width="55" height="95"/>
+                        <rect x="390" y="55" width="40" height="60"/><rect x="445" y="10" width="65" height="105"/>
+                        <rect x="520" y="40" width="50" height="75"/><rect x="880" y="30" width="60" height="85"/>
+                        <rect x="950" y="15" width="50" height="100"/><rect x="1010" y="50" width="45" height="65"/>
+                    </g>
+                    <rect x="0" y="525" width="1440" height="150" fill="#091945" opacity="0.85"/>
+                    <path d="M0,650 Q380,575 820,635 T1440,610 L1440,900 L0,900 Z" fill="#040817"/>
+                    <g transform="translate(115, 220)">
+                        <line x1="0" y1="0" x2="0" y2="435" stroke="#cbd5e1" stroke-width="6"/>
+                        <circle cx="0" cy="-4" r="8" fill="#facc15"/>
+                        <g class="flag-wave" transform="translate(4, 6)">
+                            <rect x="0" y="0" width="150" height="88" rx="2" fill="#dc2626"/>
+                            <rect x="0" y="13.5" width="150" height="13.5" fill="#f8fafc"/>
+                            <rect x="0" y="40.5" width="150" height="13.5" fill="#f8fafc"/>
+                            <rect x="0" y="67.5" width="150" height="13.5" fill="#f8fafc"/>
+                            <rect x="0" y="0" width="64" height="48" fill="#1d4ed8"/>
+                        </g>
+                    </g>
+                    <g transform="translate(275, 595)">
+                        <circle cx="22" cy="18" r="13" fill="#020617"/>
+                        <path d="M6,32 Q22,28 36,32 L42,68 L2,68 Z" fill="#020617"/>
+                        <circle cx="72" cy="12" r="14" fill="#020617"/>
+                        <path d="M54,27 Q72,23 88,27 L92,68 L50,68 Z" fill="#020617"/>
+                        <line x1="84" y1="34" x2="112" y2="-8" stroke="#020617" stroke-width="8" stroke-linecap="round" class="cheer-arm"/>
+                        <circle cx="122" cy="26" r="10" fill="#020617"/>
+                        <path d="M110,37 L134,37 L138,68 L106,68 Z" fill="#020617"/>
+                        <g transform="translate(168, 4)" class="sparkler-glow">
+                            <circle cx="0" cy="0" r="6" fill="#fef08a"/>
+                            <line x1="-12" y1="0" x2="12" y2="0" stroke="#fde047" stroke-width="2"/>
+                            <line x1="0" y1="-12" x2="0" y2="12" stroke="#fde047" stroke-width="2"/>
+                        </g>
+                    </g>
+                    <g transform="translate(1040, 580)">
+                        <circle cx="45" cy="14" r="14" fill="#020617"/>
+                        <path d="M26,30 L64,30 L68,85 L22,85 Z" fill="#020617"/>
+                        <line x1="30" y1="34" x2="8" y2="-6" stroke="#020617" stroke-width="8" stroke-linecap="round" class="cheer-arm"/>
+                        <line x1="60" y1="34" x2="82" y2="-6" stroke="#020617" stroke-width="8" stroke-linecap="round" class="cheer-arm"/>
+                    </g>
+                </svg>`;
+            }
+
+            if (themeKey === 'winter') {
+                return `
+                <svg viewBox="0 0 1440 900" class="w-full h-full" preserveAspectRatio="xMidYMid slice">
+                    <polygon points="-60,520 220,230 510,520" fill="#1e3a5f" opacity="0.65"/>
+                    <polygon points="220,230 145,328 295,328" fill="#f8fafc" opacity="0.75"/>
+                    <polygon points="820,520 1140,210 1480,520" fill="#1e3a5f" opacity="0.65"/>
+                    <polygon points="1140,210 1055,318 1225,318" fill="#f8fafc" opacity="0.75"/>
+                    <path d="M0,490 Q380,390 780,485 T1440,450 L1440,900 L0,900 Z" fill="#cbd5e1" opacity="0.28"/>
+                    <path d="M0,585 Q480,490 960,575 T1440,540 L1440,900 L0,900 Z" fill="#e2e8f0" opacity="0.42"/>
+                    <g transform="translate(1135, 385)">
+                        <circle cx="78" cy="-12" r="8" fill="#e2e8f0" class="chimney-smoke-1"/>
+                        <rect x="70" y="0" width="16" height="35" fill="#7c2d12"/>
+                        <rect x="15" y="32" width="110" height="65" fill="#451a03"/>
+                        <polygon points="0,35 70,-8 140,35" fill="#f8fafc"/>
+                        <rect x="35" y="48" width="24" height="24" rx="3" fill="#fef08a" class="light-1"/>
+                    </g>
+                    <g class="sledder" transform="translate(140, 495)">
+                        <line x1="0" y1="32" x2="54" y2="42" stroke="#991b1b" stroke-width="6" stroke-linecap="round"/>
+                        <circle cx="28" cy="8" r="10" fill="#fed7aa"/>
+                        <path d="M18,18 Q28,32 42,32" stroke="#2563eb" stroke-width="10" stroke-linecap="round" fill="none"/>
+                    </g>
+                    <ellipse cx="470" cy="735" rx="195" ry="52" fill="#bae6fd" opacity="0.55" stroke="#e0f2fe" stroke-width="4"/>
+                    <g class="skater" transform="translate(415, 680)">
+                        <circle cx="18" cy="10" r="9" fill="#fed7aa"/>
+                        <path d="M18,20 L12,44 M18,20 L28,42" stroke="#db2777" stroke-width="8" stroke-linecap="round"/>
+                    </g>
+                    <g transform="translate(960, 645)">
+                        <rect x="10" y="24" width="22" height="34" rx="8" fill="#2563eb"/>
+                        <circle cx="21" cy="12" r="11" fill="#fed7aa"/>
+                        <circle class="snowball-1" cx="35" cy="18" r="6" fill="#ffffff"/>
+                        <circle class="snowball-2" cx="255" cy="18" r="6" fill="#ffffff"/>
+                        <g transform="translate(255, 0)">
+                            <rect x="10" y="24" width="22" height="34" rx="8" fill="#059669"/>
+                            <circle cx="21" cy="12" r="11" fill="#fed7aa"/>
+                        </g>
+                    </g>
+                </svg>`;
+            }
+
+            if (themeKey === 'spring') {
+                return `
+                <svg viewBox="0 0 1440 900" class="w-full h-full" preserveAspectRatio="xMidYMid slice">
+                    <g opacity="0.32">
+                        <path d="M180,550 A580,520 0 0,1 1280,550" stroke="#ef4444" stroke-width="14" fill="none"/>
+                        <path d="M194,550 A566,506 0 0,1 1266,550" stroke="#facc15" stroke-width="14" fill="none"/>
+                        <path d="M208,550 A552,492 0 0,1 1252,550" stroke="#22c55e" stroke-width="14" fill="none"/>
+                        <path d="M222,550 A538,478 0 0,1 1238,550" stroke="#38bdf8" stroke-width="14" fill="none"/>
+                    </g>
+                    <path d="M0,510 Q420,395 860,495 T1440,460 L1440,900 L0,900 Z" fill="#15803d" opacity="0.45"/>
+                    <path d="M0,615 Q480,520 980,605 T1440,575 L1440,900 L0,900 Z" fill="#16a34a" opacity="0.55"/>
+                    <g transform="translate(20, 220)">
+                        <path d="M95,420 Q105,270 75,160 M98,290 Q165,220 215,175" stroke="#451a03" stroke-width="18" stroke-linecap="round" fill="none"/>
+                        <circle cx="75" cy="135" r="75" fill="#f472b6" opacity="0.75"/>
+                        <circle cx="155" cy="125" r="85" fill="#fbcfe8" opacity="0.75"/>
+                    </g>
+                    <g transform="translate(1060, 565)">
+                        <circle cx="22" cy="14" r="11" fill="#fed7aa"/>
+                        <rect x="12" y="26" width="20" height="34" rx="7" fill="#ec4899"/>
+                        <path d="M-15,10 Q-75,-120 -115,-285" stroke="#e2e8f0" stroke-width="1.5" fill="none"/>
+                        <g class="kite-float" transform="translate(-115, -285)">
+                            <polygon points="0,-32 24,0 0,32 -24,0" fill="#facc15" stroke="#ef4444" stroke-width="3"/>
+                        </g>
+                    </g>
+                </svg>`;
+            }
+
+            if (themeKey === 'halloween') {
+                return `
+                <svg viewBox="0 0 1440 900" class="w-full h-full" preserveAspectRatio="xMidYMid slice">
+                    <circle cx="1120" cy="185" r="88" fill="#fef08a" opacity="0.88"/>
+                    <g class="witch-broom" transform="translate(880, 175)" fill="#090414">
+                        <line x1="-35" y1="12" x2="35" y2="-4" stroke="#090414" stroke-width="4"/>
+                        <circle cx="2" cy="-12" r="8"/><polygon points="-8,-16 14,-16 2,-36"/>
+                    </g>
+                    <path d="M0,515 Q380,410 780,515 T1440,480 L1440,900 L0,900 Z" fill="#130726" opacity="0.85"/>
+                    <path d="M0,635 Q480,555 960,635 T1440,605 L1440,900 L0,900 Z" fill="#090314" opacity="0.92"/>
+                    <g transform="translate(105, 245)" fill="#070210">
+                        <rect x="30" y="75" width="140" height="145"/><polygon points="10,75 100,5 190,75"/>
+                        <rect x="52" y="105" width="24" height="36" rx="4" fill="#facc15" class="light-1"/>
+                        <rect x="124" y="105" width="24" height="36" rx="4" fill="#f97316" class="light-2"/>
+                    </g>
+                    <g transform="translate(920, 595)">
+                        <polygon points="20,-18 4,8 36,8" fill="#7e22ce"/>
+                        <circle cx="20" cy="16" r="10" fill="#fed7aa"/>
+                        <path d="M6,28 L34,28 L40,68 L0,68 Z" fill="#581c87"/>
+                    </g>
+                </svg>`;
+            }
+
+            if (themeKey === 'easter') {
+                return `
+                <svg viewBox="0 0 1440 900" class="w-full h-full" preserveAspectRatio="xMidYMid slice">
+                    <path d="M0,505 Q380,395 820,495 T1440,460 L1440,900 L0,900 Z" fill="#10b981" opacity="0.38"/>
+                    <path d="M0,615 Q480,525 960,610 T1440,580 L1440,900 L0,900 Z" fill="#34d399" opacity="0.48"/>
+                    <g transform="translate(185, 595)">
+                        <circle cx="95" cy="48" r="34" fill="#059669"/>
+                        <ellipse cx="115" cy="68" rx="9" ry="12" fill="#f472b6"/>
+                        <circle cx="42" cy="18" r="11" fill="#fed7aa"/>
+                        <rect x="30" y="30" width="24" height="36" rx="8" fill="#ec4899"/>
+                    </g>
+                    <g class="bunny-1" transform="translate(960, 625)">
+                        <ellipse cx="28" cy="40" rx="22" ry="17" fill="#f8fafc"/>
+                        <circle cx="44" cy="26" r="14" fill="#f8fafc"/>
+                        <ellipse cx="40" cy="4" rx="4.5" ry="15" fill="#f8fafc"/>
+                    </g>
+                </svg>`;
+            }
+
+            // Default: Autumn Harvest
+            return `
+            <svg viewBox="0 0 1440 900" class="w-full h-full" preserveAspectRatio="xMidYMid slice">
+                <path d="M0,505 Q400,395 820,495 T1440,455 L1440,900 L0,900 Z" fill="#7c2d12" opacity="0.52"/>
+                <path d="M0,615 Q480,520 960,605 T1440,575 L1440,900 L0,900 Z" fill="#9a3412" opacity="0.62"/>
+                <g transform="translate(135, 365)">
+                    <rect x="115" y="10" width="32" height="95" rx="14" fill="#cbd5e1"/>
+                    <rect x="15" y="42" width="105" height="65" fill="#dc2626"/>
+                    <polygon points="5,42 67,5 130,42" fill="#7f1d1d"/>
+                </g>
+                <g transform="translate(1160, 255)">
+                    <rect x="72" y="185" width="24" height="140" fill="#451a03"/>
+                    <circle cx="84" cy="125" r="78" fill="#ea580c" opacity="0.85"/>
+                </g>
+                <g transform="translate(930, 625)">
+                    <path d="M45,75 Q105,22 165,75 Z" fill="#ea580c"/>
+                    <g class="kid-jump" transform="translate(95, 0)">
+                        <circle cx="18" cy="12" r="10" fill="#fed7aa"/>
+                        <rect x="8" y="24" width="20" height="28" rx="6" fill="#16a34a"/>
+                    </g>
+                </g>
+            </svg>`;
+        }
+
+        // --- DEDICATED MOBILE PORTRAIT SCENES (440x900) ---
+        function buildMobileScenerySvg(themeKey) {
+            if (themeKey === 'christmas') {
+                return `
+                <svg viewBox="0 0 440 900" class="w-full h-full" preserveAspectRatio="xMidYMid slice">
+                    <rect x="0" y="0" width="440" height="680" fill="#2c130d" opacity="0.55"/>
+                    <rect x="0" y="600" width="440" height="85" fill="#3b1a10"/>
+                    <rect x="0" y="685" width="440" height="215" fill="#210d07"/>
+                    <path d="M-10,55 Q110,105 220,58 Q330,105 450,55" stroke="#14532d" stroke-width="20" fill="none"/>
+                    <circle cx="65" cy="76" r="5" fill="#fef08a" class="light-1"/>
+                    <circle cx="220" cy="60" r="6" fill="#fde047" class="light-3"/>
+                    <circle cx="380" cy="74" r="5" fill="#38bdf8" class="light-2"/>
+                    <g transform="translate(115, 105)">
+                        <rect x="0" y="0" width="210" height="210" rx="6" fill="#0b1d3a" stroke="#451a03" stroke-width="10"/>
+                        <path d="M5,160 Q80,130 145,158 T205,148 L205,205 L5,205 Z" fill="#e2e8f0" opacity="0.85"/>
+                        <line x1="105" y1="0" x2="105" y2="210" stroke="#451a03" stroke-width="7"/>
+                        <line x1="0" y1="105" x2="210" y2="105" stroke="#451a03" stroke-width="7"/>
+                    </g>
+                    <ellipse cx="220" cy="795" rx="195" ry="48" fill="#7f1d1d" stroke="#b91c1c" stroke-width="5"/>
+                    <!-- Mobile Fireplace Using the Same Realistic Multi-Tongue Fire Scaled -->
+                    <g transform="translate(12, 445) scale(0.62)">
+                        <rect x="0" y="30" width="340" height="460" rx="6" fill="#7c2d12" stroke="#431407" stroke-width="4"/>
+                        <rect x="-22" y="12" width="384" height="28" rx="6" fill="#451a03"/>
+                        <path d="M48,490 L48,255 Q170,195 292,255 L292,490 Z" fill="#090403"/>
+                        ${buildRealisticFireGroup()}
+                        <rect x="82" y="444" width="175" height="22" rx="10" fill="#3b1606" transform="rotate(-5 170 454)"/>
+                        <rect x="85" y="448" width="170" height="22" rx="10" fill="#451a03" transform="rotate(6 170 458)"/>
+                    </g>
+                    <g transform="translate(225, 360)">
+                        <rect x="88" y="330" width="32" height="45" fill="#451a03"/>
+                        <polygon points="104,25 30,145 178,145" fill="#14532d"/>
+                        <polygon points="104,90 15,225 193,225" fill="#166534"/>
+                        <polygon points="104,160 0,300 208,300" fill="#15803d"/>
+                        <polygon points="104,225 -12,345 220,345" fill="#14532d"/>
+                        <polygon points="104,0 111,15 127,15 114,24 119,40 104,30 89,40 94,24 81,15 97,15" fill="#facc15" class="light-1"/>
+                    </g>
+                </svg>`;
+            }
+
+            if (themeKey === 'summer') {
+                return `
+                <svg viewBox="0 0 440 900" class="w-full h-full" preserveAspectRatio="xMidYMid slice">
+                    <!-- Golden Sun & Sunny Glow -->
+                    <circle cx="355" cy="140" r="72" fill="#fef08a" opacity="0.28"/>
+                    <circle cx="355" cy="140" r="46" fill="#fde047"/>
+                    <rect x="0" y="455" width="440" height="185" fill="#0284c7" opacity="0.75"/>
+                    <!-- Grassy Park Bluffs Next to Mobile Beach -->
+                    <path d="M0,545 Q130,525 220,585 L220,900 L0,900 Z" fill="#16a34a" opacity="0.85"/>
+                    <path d="M0,625 Q220,575 440,620 L440,900 L0,900 Z" fill="#fbbf24" opacity="0.88"/>
+                    <!-- Surfer & Flamingo Float -->
+                    <g class="surfer" transform="translate(85, 485) scale(0.85)">
+                        <ellipse cx="22" cy="34" rx="26" ry="5.5" fill="#f43f5e"/>
+                        <circle cx="22" cy="6" r="7.5" fill="#fed7aa"/>
+                        <path d="M16,14 L28,14 L30,32 L14,32 Z" fill="#0ea5e9"/>
+                    </g>
+                    <g class="float-tube" transform="translate(265, 515) scale(0.9)">
+                        <ellipse cx="26" cy="24" rx="22" ry="8" fill="#f472b6"/>
+                        <circle cx="24" cy="14" r="7" fill="#fed7aa"/>
+                    </g>
+                    <!-- Picnic on Grassy Bluff (Left) & Kids Building Sandcastle -->
+                    <g transform="translate(18, 560) scale(0.75)">
+                        <polygon points="0,35 110,35 125,52 -12,52" fill="#ef4444" stroke="#fef08a" stroke-width="3"/>
+                        <circle cx="28" cy="8" r="9" fill="#fed7aa"/>
+                        <circle cx="82" cy="10" r="9" fill="#fed7aa"/>
+                    </g>
+                    <!-- Parabolic Beach Volleyball Match Fitted to Mobile -->
+                    <g transform="translate(145, 685) scale(0.92)">
+                        <line x1="115" y1="5" x2="115" y2="85" stroke="#f8fafc" stroke-width="3.5"/>
+                        <g class="vp-left" transform="translate(22, 18)">
+                            <circle cx="18" cy="10" r="10" fill="#fed7aa"/>
+                            <path d="M8,22 L28,22 L31,54 L5,54 Z" fill="#ef4444"/>
+                            <line class="vp-arm-left" x1="24" y1="26" x2="44" y2="12" stroke="#fed7aa" stroke-width="5" stroke-linecap="round"/>
+                        </g>
+                        <g class="vp-right" transform="translate(172, 18)">
+                            <circle cx="18" cy="10" r="10" fill="#fed7aa"/>
+                            <path d="M8,22 L28,22 L31,54 L5,54 Z" fill="#2563eb"/>
+                            <line class="vp-arm-right" x1="12" y1="26" x2="-8" y2="12" stroke="#fed7aa" stroke-width="5" stroke-linecap="round"/>
+                        </g>
+                        <g transform="translate(48, 22)">
+                            <g class="vball-x"><g class="vball-y">
+                                <circle cx="0" cy="0" r="9.5" fill="#ffffff" stroke="#f59e0b" stroke-width="2.5"/>
+                            </g></g>
+                        </g>
+                    </g>
+                </svg>`;
+            }
+
+            // Fallback to scaled desktop view for other mobile themes
+            return buildScenerySvg(themeKey).replace('viewBox="0 0 1440 900"', 'viewBox="420 0 600 900"');
+        }
+
+      // --- PARTICLE & COMPLETION BURST ENGINE (50% SPEED) ---
+        const canvas = document.getElementById('theme-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        let fireworks = [];
+        let completionBursts = [];
+        let currentCanvasTheme = '';
+        let bgDim = parseInt(localStorage.getItem('hw_bg_dim') || '0', 10);
+        let particlesEnabled = localStorage.getItem('hw_particles_enabled') !== 'false';
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', () => { resizeCanvas(); renderResponsiveScenery(); });
+        resizeCanvas();
+
+        function initParticlesForTheme(themeKey) {
+            currentCanvasTheme = themeKey;
+            particles = [];
+            fireworks = [];
+            const count = themeKey === 'july4' ? 40 : (themeKey === 'christmas' ? 36 : 50);
+            for (let idx = 0; idx < count; idx++) {
+                particles.push(makeParticle(themeKey, true, idx));
+            }
+        }
+
+        function makeParticle(themeKey, randomY = false, idx = 0) {
+            const w = canvas.width || 1200, h = canvas.height || 800;
+            if (themeKey === 'christmas') {
+                return {
+                    x: Math.random() * w, y: randomY ? Math.random() * h : h + 10,
+                    vx: (Math.random() - 0.5) * 0.2,
+                    vy: -(0.125 + Math.random() * 0.275),
+                    r: 1.8 + Math.random() * 3.2, angle: Math.random() * Math.PI * 2,
+                    color: idx % 2 === 0 ? 'rgba(253, 224, 71, 0.35)' : 'rgba(251, 146, 60, 0.28)'
+                };
+            }
+            const leafColors = ['#ea580c', '#d97706', '#dc2626', '#f59e0b'];
+            const springColors = ['#fbcfe8', '#f9a8d4', '#f472b6', '#fde047'];
+            return {
+                x: Math.random() * w, y: randomY ? Math.random() * h : -15,
+                vx: (Math.random() - 0.5) * 0.55,
+                vy: 0.35 + Math.random() * 0.75,
+                r: 2.5 + Math.random() * 3.5, angle: Math.random() * Math.PI * 2,
+                spin: (Math.random() - 0.5) * 0.02,
+                color: themeKey === 'autumn' ? leafColors[idx % 4] : ((themeKey === 'spring' || themeKey === 'easter') ? springColors[idx % 4] : '#ffffff')
+            };
+        }
+
+        // Spawns only the particle burst on completion (encouraging toast message removed)
+        let toastTimer = null;
+        function triggerTaskCompletionCelebration(evt) {
+            if (!particlesEnabled) return;
+            const activeKey = getActiveThemeKey();
+            const cfg = THEMES[activeKey] || THEMES.autumn;
+            const originX = (evt && evt.clientX) ? evt.clientX : window.innerWidth / 2;
+            const originY = (evt && evt.clientY) ? evt.clientY : window.innerHeight / 2;
+
+            for (let s = 0; s < 32; s++) {
+                const ang = (Math.PI * 2 * s) / 32 + (Math.random() - 0.5) * 0.2;
+                const spd = 1.0 + Math.random() * 2.75;
+                completionBursts.push({
+                    x: originX, y: originY,
+                    vx: Math.cos(ang) * spd,
+                    vy: Math.sin(ang) * spd - 0.9,
+                    r: 3.5 + Math.random() * 3.5,
+                    alpha: 1,
+                    color: cfg.burstColors[s % cfg.burstColors.length]
+                });
+            }
+        }
+
+        function animateCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const t = currentCanvasTheme;
+
+            if (particlesEnabled) {
+                if (t === 'july4') {
+                    if (Math.random() < 0.025) {
+                        const colors = ['#ef4444', '#ffffff', '#38bdf8', '#facc15', '#a855f7'];
+                        const col = colors[Math.floor(Math.random() * colors.length)];
+                        const fx = 100 + Math.random() * (canvas.width - 200);
+                        const fy = 70 + Math.random() * (canvas.height * 0.42);
+                        for (let s = 0; s < 28; s++) {
+                            const ang = (Math.PI * 2 * s) / 28, spd = 0.6 + Math.random() * 1.4;
+                            fireworks.push({ x: fx, y: fy, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, alpha: 1, color: col });
+                        }
+                    }
+                    for (let f = fireworks.length - 1; f >= 0; f--) {
+                        const fw = fireworks[f];
+                        fw.x += fw.vx; fw.y += fw.vy; fw.vy += 0.02; fw.alpha -= 0.0085;
+                        if (fw.alpha <= 0) { fireworks.splice(f, 1); continue; }
+                        ctx.globalAlpha = fw.alpha; ctx.fillStyle = fw.color;
+                        ctx.beginPath(); ctx.arc(fw.x, fw.y, 2.3, 0, Math.PI * 2); ctx.fill();
+                    }
+                    ctx.globalAlpha = 1;
+                } else {
+                    particles.forEach((p, idx) => {
+                        p.x += p.vx + Math.sin((p.y + idx) * 0.015) * 0.2;
+                        p.y += p.vy;
+                        p.angle = (p.angle || 0) + (p.spin || 0.01);
+                        if (p.y > canvas.height + 20 || p.y < -25) Object.assign(p, makeParticle(t, false, idx));
+                        ctx.save(); ctx.translate(p.x, p.y);
+                        if (t === 'autumn' || t === 'spring' || t === 'easter') {
+                            ctx.rotate(p.angle); ctx.fillStyle = p.color;
+                            ctx.beginPath(); ctx.ellipse(0, 0, p.r * 1.5, p.r * 0.85, 0, 0, Math.PI * 2); ctx.fill();
+                        } else if (t === 'summer') {
+                            ctx.fillStyle = 'rgba(254, 240, 138, 0.45)';
+                            ctx.beginPath(); ctx.arc(0, 0, p.r * 0.85, 0, Math.PI * 2); ctx.fill();
+                        } else {
+                            ctx.fillStyle = p.color || 'rgba(255, 255, 255, 0.82)';
+                            ctx.beginPath(); ctx.arc(0, 0, p.r, 0, Math.PI * 2); ctx.fill();
+                        }
+                        ctx.restore();
+                    });
+                }
+
+                // Render Task Completion Celebration Bursts (50% speed)
+                for (let b = completionBursts.length - 1; b >= 0; b--) {
+                    const bp = completionBursts[b];
+                    bp.x += bp.vx; bp.y += bp.vy; bp.vy += 0.06; bp.alpha -= 0.011;
+                    if (bp.alpha <= 0) { completionBursts.splice(b, 1); continue; }
+                    ctx.globalAlpha = bp.alpha;
+                    ctx.fillStyle = bp.color;
+                    ctx.beginPath();
+                    ctx.arc(bp.x, bp.y, bp.r, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+            }
+
+            requestAnimationFrame(animateCanvas);
+        }
+
+        // --- COLLAPSIBLE TRAY, OPACITY, BACKGROUND FADE & PARTICLES CONTROLS ---
+        let trayOpen = localStorage.getItem('hw_tray_open') === 'true';
+
+        function applyTrayState() {
+            const tray = document.getElementById('top-collapsible-tray');
+            const chevron = document.getElementById('tray-chevron');
+            if (!tray || !chevron) return;
+            tray.classList.toggle('hidden', !trayOpen);
+            chevron.style.transform = trayOpen ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+
+        function toggleTopTray() {
+            trayOpen = !trayOpen;
+            localStorage.setItem('hw_tray_open', trayOpen ? 'true' : 'false');
+            applyTrayState();
+        }
+
+        function setOpacityPreviewMode(isSliding) {
+            const page = document.getElementById('settings-page');
+            if (!page) return;
+            const innerCard = page.firstElementChild;
+            const sliderBox = document.getElementById('opacity-slider-section');
+
+            page.classList.toggle('bg-slate-950/55', !isSliding);
+            page.classList.toggle('backdrop-blur-md', !isSliding);
+
+            if (innerCard) {
+                innerCard.classList.toggle('bg-slate-900/75', !isSliding);
+                innerCard.classList.toggle('border', !isSliding);
+                innerCard.classList.toggle('shadow-2xl', !isSliding);
+                Array.from(innerCard.children).forEach(child => {
+                    if (child !== sliderBox) {
+                        child.style.opacity = isSliding ? '0' : '1';
+                        child.style.pointerEvents = isSliding ? 'none' : '';
+                    }
+                });
+            }
+        }
+
+        function updateBgDim(val, syncAfter = false) {
+            bgDim = Math.max(0, Math.min(95, parseInt(val, 10) || 0));
+            const dimmer = document.getElementById('theme-dimmer');
+            if (dimmer) dimmer.style.opacity = (bgDim / 100).toFixed(2);
+            const lbl = document.getElementById('bg-dim-value-label');
+            if (lbl) lbl.textContent = `${bgDim}%`;
+            const slider = document.getElementById('bg-dim-slider');
+            if (slider && parseInt(slider.value, 10) !== bgDim) slider.value = bgDim;
+            localStorage.setItem('hw_bg_dim', String(bgDim));
+            if (syncAfter) pushRemoteState();
+        }
+
+        function updateParticlesUI() {
+            const btn = document.getElementById('particles-toggle-btn');
+            if (!btn) return;
+            if (particlesEnabled) {
+                btn.textContent = '✨ Particles: ON';
+                btn.className = 'px-3.5 py-1.5 rounded-xl text-xs font-bold border transition bg-emerald-600/30 border-emerald-400/50 text-emerald-200';
+            } else {
+                btn.textContent = '🚫 Particles: OFF';
+                btn.className = 'px-3.5 py-1.5 rounded-xl text-xs font-bold border transition bg-slate-800 border-slate-600 text-slate-400';
+            }
+        }
+
+        function toggleParticles() {
+            particlesEnabled = !particlesEnabled;
+            if (!particlesEnabled) {
+                completionBursts = [];
+                fireworks = [];
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+            localStorage.setItem('hw_particles_enabled', particlesEnabled ? 'true' : 'false');
+            updateParticlesUI();
+            pushRemoteState();
+        }
+
+        function updateCardOpacity(val, syncAfter = false) {
+            cardOpacity = parseInt(val, 10) || 68;
+            document.documentElement.style.setProperty('--card-opacity', (cardOpacity / 100).toFixed(2));
+            const lbl = document.getElementById('opacity-value-label');
+            if (lbl) lbl.textContent = `${cardOpacity}%`;
+            const slider = document.getElementById('card-opacity-slider');
+            if (slider && parseInt(slider.value, 10) !== cardOpacity) slider.value = cardOpacity;
+            localStorage.setItem('hw_card_opacity', String(cardOpacity));
+            updateBgDim(bgDim, false);
+            updateParticlesUI();
+            if (syncAfter) pushRemoteState();
+        }
+
+        function toggleHideCompleted(checked) {
+            hideCompleted = checked;
+            localStorage.setItem('hw_hide_completed', checked ? 'true' : 'false');
+            renderAll();
+        }
+
+        function renderResponsiveScenery() {
+            const activeKey = getActiveThemeKey();
+            const isMobileScreen = window.innerWidth < 768;
+            document.getElementById('theme-scenery').innerHTML = isMobileScreen
+                ? buildMobileScenerySvg(activeKey)
+                : buildScenerySvg(activeKey);
+        }
+
+        function applyTheme() {
+            const activeKey = getActiveThemeKey();
+            const cfg = THEMES[activeKey] || THEMES.autumn;
+            const root = document.documentElement;
+
+            root.style.setProperty('--bg-top', cfg.bgTop);
+            root.style.setProperty('--bg-bottom', cfg.bgBottom);
+            root.style.setProperty('--card-rgb', cfg.cardRgb);
+            root.style.setProperty('--card-border', cfg.cardBorder);
+            root.style.setProperty('--accent', cfg.accent);
+            root.style.setProperty('--accent-hover', cfg.accentHover);
+            updateCardOpacity(cardOpacity, false);
+
+            document.getElementById('theme-header-icon').textContent = cfg.icon;
+            const modeText = themePreference === 'auto' ? `Auto: ${cfg.name}` : cfg.name;
+            document.getElementById('theme-badge').textContent = `${cfg.icon} ${modeText}`;
+
+            const autoDetectKey = detectSeasonalTheme();
+            const autoLabel = document.getElementById('auto-detected-label');
+            if (autoLabel) {
+                autoLabel.textContent = `Currently: ${THEMES[autoDetectKey].icon} ${THEMES[autoDetectKey].name}`;
+            }
+
+            document.querySelectorAll('.theme-opt').forEach(btn => {
+                const isSelected = themePreference !== 'auto' && btn.getAttribute('data-theme') === themePreference;
+                btn.className = 'theme-opt p-2.5 rounded-xl border text-center transition ' +
+                    (isSelected ? 'border-amber-400 bg-white/15 shadow' : 'border-slate-700 bg-slate-800/70 hover:bg-slate-800');
+            });
+
+            renderResponsiveScenery();
+            initParticlesForTheme(activeKey);
+            applyTrayState();
+        }
+
+        function openSettingsPage(show) {
+            const page = document.getElementById('settings-page');
+            if (show) {
+                document.getElementById('github-token-input').value = localStorage.getItem('hw_gh_token') || '';
+                populateCourseRulesAndColors();
+            }
+            page.classList.toggle('hidden', !show);
+        }
+
+        function selectTheme(pref) {
+            themePreference = pref;
+            localStorage.setItem('hw_theme_pref', pref);
+            applyTheme();
+            pushRemoteState();
+        }
+
+        // =====================================================================
+        // CUSTOM SUBJECT COLOR PALETTES & SCHEDULE LOGIC
+        // =====================================================================
+        const COLOR_PALETTES = {
+            indigo:  { label: 'Indigo',  hex: '#6366f1', cls: 'bg-indigo-500/25 text-indigo-200 border-indigo-400/40' },
+            emerald: { label: 'Emerald', hex: '#10b981', cls: 'bg-emerald-500/25 text-emerald-200 border-emerald-400/40' },
+            amber:   { label: 'Amber',   hex: '#f59e0b', cls: 'bg-amber-500/25 text-amber-200 border-amber-400/40' },
+            rose:    { label: 'Rose',    hex: '#f43f5e', cls: 'bg-rose-500/25 text-rose-200 border-rose-400/40' },
+            cyan:    { label: 'Cyan',    hex: '#06b6d4', cls: 'bg-cyan-500/25 text-cyan-200 border-cyan-400/40' },
+            purple:  { label: 'Purple',  hex: '#a855f7', cls: 'bg-purple-500/25 text-purple-200 border-purple-400/40' },
+            pink:    { label: 'Pink',    hex: '#ec4899', cls: 'bg-pink-500/25 text-pink-200 border-pink-400/40' },
+            orange:  { label: 'Orange',  hex: '#f97316', cls: 'bg-orange-500/25 text-orange-200 border-orange-400/40' }
+        };
+        const PALETTE_KEYS = Object.keys(COLOR_PALETTES);
+
+        function getCourseColorKey(courseName) {
+            if (!courseColors[courseName]) {
+                const allCourses = getAllCourseNames();
+                const idx = Math.max(0, allCourses.indexOf(courseName)) % PALETTE_KEYS.length;
+                courseColors[courseName] = PALETTE_KEYS[idx];
+            }
+            return courseColors[courseName];
+        }
+
+        function getCourseStyle(courseName) {
+            const key = getCourseColorKey(courseName);
+            return (COLOR_PALETTES[key] || COLOR_PALETTES.indigo).cls;
+        }
+
+        function getDefaultRuleForCourse(courseName) {
+            const c = (courseName || '').toLowerCase();
+            if (c.includes('foundations of ethics') || c.includes('ethics') || c === 'foe') {
+                return { shiftDays: -1, timeMode: 'force', customTime: '22:00', skipExamsEssays: true };
+            }
+            if (c.includes('spanish') || c.includes('spn') || c.includes('vhl')) {
+                return { shiftDays: 0, timeMode: 'force', customTime: '22:00', skipExamsEssays: false };
+            }
+            if (c.includes('trinity') || c.includes('christology')) {
+                return { shiftDays: 0, timeMode: 'force', customTime: '22:00', skipExamsEssays: true };
+            }
+            return { shiftDays: 0, timeMode: 'default', customTime: '22:00', skipExamsEssays: true };
+        }
+
+        function getRuleForCourse(courseName) {
+            if (!courseRules[courseName]) {
+                courseRules[courseName] = getDefaultRuleForCourse(courseName);
+            }
+            return courseRules[courseName];
+        }
+
+        function shiftIsoDate(isoDate, daysDelta) {
+            if (!isoDate || !daysDelta) return isoDate;
+            const parts = isoDate.split('-').map(Number);
+            if (parts.length !== 3) return isoDate;
+            const dt = new Date(parts[0], parts[1] - 1, parts[2]);
+            dt.setDate(dt.getDate() + Number(daysDelta));
+            return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+        }
+
+        function getBaseTaskId(item) {
+            if (item._id) return item._id;
+            const cleanTitle = (item.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const origDate = item._orig_iso_date || item.iso_date || '';
+            return encodeURIComponent(item.course + '__' + cleanTitle + '__' + origDate);
+        }
+
+        function formatTime12h(time24) {
+            const t = time24 && time24.includes(':') ? time24 : globalDefaultTime;
+            const [hStr, mStr] = t.split(':');
+            let h = parseInt(hStr, 10);
+            if (isNaN(h)) return '10:00 PM';
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12 || 12;
+            return `${h}:${mStr} ${ampm}`;
+        }
+
+        function formatShortDate(isoDate) {
+            if (!isoDate) return 'No Date';
+            const d = new Date(isoDate + 'T00:00:00');
+            if (isNaN(d.getTime())) return isoDate;
+            return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        }
+
+        function getAllAssignments() {
+            const merged = [...BOT_ASSIGNMENTS, ...customTasks].map(raw => {
+                const copy = { ...raw };
+                copy._orig_iso_date = raw._orig_iso_date || raw.iso_date;
+                copy._orig_time_24 = raw._orig_time_24 !== undefined ? raw._orig_time_24 : (raw.time_24 || '');
+                const id = getBaseTaskId(copy);
+                copy._id = id;
+
+                const rule = getRuleForCourse(copy.course);
+                const tLow = (copy.title || '').toLowerCase();
+                const isMajorAssessment = tLow.includes('essay') || tLow.includes('exam') || tLow.includes('test') || tLow.includes('paper');
+
+                let effDate = copy._orig_iso_date;
+                let effTime = copy._orig_time_24 || globalDefaultTime;
+
+                if (rule) {
+                    const shift = Number(rule.shiftDays || 0);
+                    if (shift !== 0 && !(rule.skipExamsEssays && isMajorAssessment)) {
+                        effDate = shiftIsoDate(copy._orig_iso_date, shift);
+                        copy._rule_shifted = true;
+                    }
+                    if (rule.timeMode === 'force' && !(rule.skipExamsEssays && isMajorAssessment && copy._orig_time_24)) {
+                        effTime = rule.customTime || globalDefaultTime;
+                    } else if (!copy._orig_time_24) {
+                        effTime = rule.customTime || globalDefaultTime;
+                    }
+                }
+
+                copy.iso_date = effDate;
+                copy.time_24 = effTime;
+
+                if (taskOverrides[id]) {
+                    if (taskOverrides[id].iso_date) copy.iso_date = taskOverrides[id].iso_date;
+                    if (taskOverrides[id].time_24) copy.time_24 = taskOverrides[id].time_24;
+                    copy._is_edited = true;
+                }
+                return copy;
+            });
+
+            return merged.sort((a, b) => {
+                const dateCmp = (a.iso_date || '9999').localeCompare(b.iso_date || '9999');
+                if (dateCmp !== 0) return dateCmp;
+                return (a.time_24 || '22:00').localeCompare(b.time_24 || '22:00');
+            });
+        }
+
+        function getAllCourseNames() {
+            const set = new Set([...BOT_ASSIGNMENTS, ...customTasks].map(i => i.course).filter(Boolean));
+            return Array.from(set);
+        }
+
+        function previewCourseColorChange(cardEl, newKey) {
+            const pal = COLOR_PALETTES[newKey] || COLOR_PALETTES.indigo;
+            const selectEl = cardEl.querySelector('.rule-color');
+            if (selectEl && selectEl.value !== newKey) selectEl.value = newKey;
+
+            const dotEl = cardEl.querySelector('.rule-color-dot');
+            if (dotEl) dotEl.style.backgroundColor = pal.hex;
+
+            const badgeEl = cardEl.querySelector('.course-preview-badge');
+            if (badgeEl) badgeEl.className = `course-preview-badge px-2.5 py-0.5 rounded-full text-xs font-medium border ${pal.cls}`;
+
+            cardEl.querySelectorAll('.swatch-dot').forEach(btn => {
+                const isMatch = btn.getAttribute('data-col') === newKey;
+                btn.style.transform = isMatch ? 'scale(1.25)' : 'scale(1)';
+                btn.style.outline = isMatch ? '2px solid white' : 'none';
+            });
+        }
+
+        function populateCourseRulesAndColors() {
+            document.getElementById('global-default-time-input').value = globalDefaultTime;
+            const courses = getAllCourseNames();
+            const container = document.getElementById('course-rules-list');
+
+            container.innerHTML = courses.map(c => {
+                const r = getRuleForCourse(c);
+                const colKey = getCourseColorKey(c);
+                const badgeStyle = getCourseStyle(c);
+                const currentHex = (COLOR_PALETTES[colKey] || COLOR_PALETTES.indigo).hex;
+
+                const colorOptions = PALETTE_KEYS.map(k =>
+                    `<option value="${k}" ${k === colKey ? 'selected' : ''}>${COLOR_PALETTES[k].label}</option>`
+                ).join('');
+
+                const colorDotsRow = PALETTE_KEYS.map(k => {
+                    const active = k === colKey;
+                    return `<button type="button" data-col="${k}" title="${COLOR_PALETTES[k].label}"
+                        onclick="previewCourseColorChange(this.closest('[data-course]'), '${k}')"
+                        class="swatch-dot w-4 h-4 rounded-full border border-white/40 transition-transform"
+                        style="background-color: ${COLOR_PALETTES[k].hex}; transform: ${active ? 'scale(1.25)' : 'scale(1)'}; outline: ${active ? '2px solid white' : 'none'}; outline-offset: 1px;"></button>`;
+                }).join('');
+
+                return `
+                <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-2.5" data-course="${encodeURIComponent(c)}">
+                    <div class="flex items-center justify-between flex-wrap gap-2">
+                        <span class="course-preview-badge px-2.5 py-0.5 rounded-full text-xs font-medium border ${badgeStyle}">${c}</span>
+                        <div class="flex items-center gap-2.5 flex-wrap">
+                            <div class="flex items-center gap-1.5 bg-slate-950/70 px-2.5 py-1 rounded-lg border border-white/10">
+                                ${colorDotsRow}
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="rule-color-dot w-3.5 h-3.5 rounded-full inline-block border border-white/50 shadow" style="background-color: ${currentHex}"></span>
+                                <select onchange="previewCourseColorChange(this.closest('[data-course]'), this.value)"
+                                    class="rule-color bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white">
+                                    ${colorOptions}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <div>
+                            <label class="text-[11px] text-slate-400 block mb-1">Due Date Shift</label>
+                            <select class="rule-shift w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                                <option value="0" ${Number(r.shiftDays) === 0 ? 'selected' : ''}>Same day as listed</option>
+                                <option value="-1" ${Number(r.shiftDays) === -1 ? 'selected' : ''}>1 day before (Night before)</option>
+                                <option value="-2" ${Number(r.shiftDays) === -2 ? 'selected' : ''}>2 days before</option>
+                                <option value="1" ${Number(r.shiftDays) === 1 ? 'selected' : ''}>1 day after</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[11px] text-slate-400 block mb-1">Time Rule</label>
+                            <select class="rule-timemode w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                                <option value="default" ${r.timeMode === 'default' ? 'selected' : ''}>Keep portal time (if listed)</option>
+                                <option value="force" ${r.timeMode === 'force' ? 'selected' : ''}>Force all tasks to custom time</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[11px] text-slate-400 block mb-1">Course Due Time</label>
+                            <input type="time" value="${r.customTime || '22:00'}" class="rule-time w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                        </div>
+                    </div>
+                    <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer pt-1">
+                        <input type="checkbox" ${r.skipExamsEssays ? 'checked' : ''} class="rule-skip rounded bg-slate-800 border-slate-700 text-indigo-600">
+                        Keep major Essays / Exams on their official listed date & time
+                    </label>
+                </div>`;
+            }).join('');
+        }
+
+        function saveRulesFromModal() {
+            globalDefaultTime = document.getElementById('global-default-time-input').value || '22:00';
+            localStorage.setItem('hw_global_default_time', globalDefaultTime);
+
+            const cards = document.querySelectorAll('#course-rules-list > div[data-course]');
+            cards.forEach(card => {
+                const courseName = decodeURIComponent(card.getAttribute('data-course'));
+                const shiftDays = parseInt(card.querySelector('.rule-shift').value, 10) || 0;
+                const timeMode = card.querySelector('.rule-timemode').value;
+                const customTime = card.querySelector('.rule-time').value || '22:00';
+                const skipExamsEssays = card.querySelector('.rule-skip').checked;
+                const colorKey = card.querySelector('.rule-color').value || 'indigo';
+                courseRules[courseName] = { shiftDays, timeMode, customTime, skipExamsEssays };
+                courseColors[courseName] = colorKey;
+            });
+
+            localStorage.setItem('hw_course_rules', JSON.stringify(courseRules));
+            localStorage.setItem('hw_course_colors', JSON.stringify(courseColors));
+            populateCourseRulesAndColors();
+            renderAll();
+            pushRemoteState();
+
+            // 1. Flash the Save button green with confirmation text
+            const saveBtn = document.querySelector('button[onclick="saveRulesFromModal()"]');
+            if (saveBtn) {
+                const origText = '💾 Save Colors & Course Rules';
+                saveBtn.textContent = '✅ Rules & Colors Applied!';
+                saveBtn.classList.remove('theme-accent-bg');
+                saveBtn.classList.add('bg-emerald-600');
+                setTimeout(() => {
+                    saveBtn.textContent = origText;
+                    saveBtn.classList.remove('bg-emerald-600');
+                    saveBtn.classList.add('theme-accent-bg');
+                }, 2400);
+            }
+
+            // 2. Pop the top confirmation toast banner over the Settings overlay
+            document.getElementById('reward-toast-icon').textContent = '✅';
+            document.getElementById('reward-toast-title').textContent = 'Course Rules & Subject Colors Applied!';
+            document.getElementById('reward-toast-sub').textContent = `Updated ${cards.length} courses & synced to cloud`;
+
+            const toast = document.getElementById('reward-toast');
+            toast.classList.remove('opacity-0', '-translate-y-4');
+            toast.classList.add('opacity-100', 'translate-y-0');
+            if (toastTimer) clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-4');
+                toast.classList.remove('opacity-100', 'translate-y-0');
+            }, 2600);
+        }
+
+        function resetAllCourseRules() {
+            courseRules = {};
+            courseColors = {};
+            globalDefaultTime = '22:00';
+            localStorage.removeItem('hw_course_rules');
+            localStorage.removeItem('hw_course_colors');
+            localStorage.setItem('hw_global_default_time', '22:00');
+            populateCourseRulesAndColors();
+            renderAll();
+            pushRemoteState();
+        }
+
+        // --- TWO-WAY CLOUD SYNC ---
+        function setSyncStatus(text, colorClass) {
+            const el = document.getElementById('sync-status');
+            if (el) { el.textContent = text; el.className = colorClass; }
+        }
+
+        async function pullRemoteState() {
+            if (!GH_USER || GH_USER === 'YOUR_GITHUB_USERNAME') return;
+            try {
+                const url = `https://raw.githubusercontent.com/${GH_USER}/${GH_REPO}/main/completed.json?t=${Date.now()}`;
+                const res = await fetch(url);
+                if (res.ok) {
+                    const remoteData = await res.json();
+                    if (remoteData && (remoteData._version >= 2 || remoteData.completed || remoteData.overrides)) {
+                        completedIds = { ...completedIds, ...(remoteData.completed || {}) };
+                        taskOverrides = { ...taskOverrides, ...(remoteData.overrides || {}) };
+                        if (remoteData.courseRules) courseRules = { ...courseRules, ...remoteData.courseRules };
+                        if (remoteData.courseColors) courseColors = { ...courseColors, ...remoteData.courseColors };
+                        if (remoteData.globalDefaultTime) globalDefaultTime = remoteData.globalDefaultTime;
+                        if (remoteData.cardOpacity) updateCardOpacity(remoteData.cardOpacity, false);
+                        if (remoteData.themePreference) {
+                            themePreference = remoteData.themePreference;
+                            localStorage.setItem('hw_theme_pref', themePreference);
+                            applyTheme();
+                        }
+                        if (Array.isArray(remoteData.customTasks) && remoteData.customTasks.length > 0) {
+                            const byId = {};
+                            [...customTasks, ...remoteData.customTasks].forEach(t => { byId[getBaseTaskId(t)] = t; });
+                            customTasks = Object.values(byId);
+                        }
+                    } else {
+                        completedIds = { ...completedIds, ...remoteData };
+                    }
+                    localStorage.setItem('hw_completed_ids', JSON.stringify(completedIds));
+                    localStorage.setItem('hw_task_overrides', JSON.stringify(taskOverrides));
+                    localStorage.setItem('hw_course_rules', JSON.stringify(courseRules));
+                    localStorage.setItem('hw_course_colors', JSON.stringify(courseColors));
+                    localStorage.setItem('hw_global_default_time', globalDefaultTime);
+                    localStorage.setItem('hw_custom_tasks', JSON.stringify(customTasks));
+                    setSyncStatus('☁️ Cloud synced', 'text-emerald-300');
+                    renderAll();
+                }
+            } catch (e) {
+                console.log('No remote completed.json yet or offline.');
+            }
+        }
+
+        async function pushRemoteState() {
+            const token = localStorage.getItem('hw_gh_token');
+            if (!token || !GH_USER || GH_USER === 'YOUR_GITHUB_USERNAME') return;
+
+            setSyncStatus('☁️ Syncing...', 'text-amber-300');
+            const apiUrl = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/completed.json`;
+            const headers = {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/vnd.github+json',
+                'Content-Type': 'application/json'
+            };
+
+            try {
+                let sha = null;
+                const getRes = await fetch(apiUrl, { headers });
+                if (getRes.ok) {
+                    const fileInfo = await getRes.json();
+                    sha = fileInfo.sha;
+                }
+
+                const payloadObj = {
+                    _version: 4,
+                    completed: completedIds,
+                    overrides: taskOverrides,
+                    courseRules: courseRules,
+                    courseColors: courseColors,
+                    cardOpacity: cardOpacity,
+                    globalDefaultTime: globalDefaultTime,
+                    themePreference: themePreference,
+                    customTasks: customTasks
+                };
+
+                const contentB64 = btoa(unescape(encodeURIComponent(JSON.stringify(payloadObj, null, 2))));
+                const body = { message: 'Sync homework state & settings', content: contentB64, branch: 'main' };
+                if (sha) body.sha = sha;
+
+                const putRes = await fetch(apiUrl, { method: 'PUT', headers, body: JSON.stringify(body) });
+                if (putRes.ok) setSyncStatus('☁️ Cloud synced', 'text-emerald-300');
+                else setSyncStatus('⚠️ Sync token error', 'text-rose-400');
+            } catch (e) {
+                setSyncStatus('⚠️ Offline (saved locally)', 'text-amber-300');
+            }
+        }
+
+        function saveSyncToken() {
+            const val = document.getElementById('github-token-input').value.trim();
+            if (val) {
+                localStorage.setItem('hw_gh_token', val);
+                pushRemoteState();
+            } else {
+                localStorage.removeItem('hw_gh_token');
+                setSyncStatus('Local mode', 'text-slate-400');
+            }
+        }
+
+        function toggleComplete(taskId, evt) {
+            const markingDone = !completedIds[taskId];
+            if (completedIds[taskId]) {
+                delete completedIds[taskId];
+            } else {
+                completedIds[taskId] = true;
+                triggerTaskCompletionCelebration(evt);
+            }
+            localStorage.setItem('hw_completed_ids', JSON.stringify(completedIds));
+            renderAll();
+            pushRemoteState();
+        }
+
+        function openEditModal(taskId) {
+            const allItems = getAllAssignments();
+            const item = allItems.find(i => i._id === taskId);
+            if (!item) return;
+            document.getElementById('edit-task-id').value = taskId;
+            document.getElementById('edit-task-subtitle').textContent = `${item.course} — ${item.title}`;
+            document.getElementById('edit-date-input').value = item.iso_date || '';
+            document.getElementById('edit-time-input').value = item.time_24 || '22:00';
+            toggleEditModal(true);
+        }
+
+        function toggleEditModal(show) {
+            const modal = document.getElementById('edit-modal');
+            modal.classList.toggle('hidden', !show);
+            modal.classList.toggle('flex', show);
+        }
+
+        function saveTaskSchedule() {
+            const taskId = document.getElementById('edit-task-id').value;
+            const newDate = document.getElementById('edit-date-input').value;
+            const newTime = document.getElementById('edit-time-input').value || '22:00';
+            if (!taskId || !newDate) return;
+            taskOverrides[taskId] = { iso_date: newDate, time_24: newTime };
+            localStorage.setItem('hw_task_overrides', JSON.stringify(taskOverrides));
+            toggleEditModal(false);
+            renderAll();
+            pushRemoteState();
+        }
+
+        function resetTaskSchedule() {
+            const taskId = document.getElementById('edit-task-id').value;
+            if (taskId && taskOverrides[taskId]) {
+                delete taskOverrides[taskId];
+                localStorage.setItem('hw_task_overrides', JSON.stringify(taskOverrides));
+            }
+            toggleEditModal(false);
+            renderAll();
+            pushRemoteState();
+        }
+
+        function deleteCustomTask(taskId) {
+            customTasks = customTasks.filter(t => getBaseTaskId(t) !== taskId);
+            delete taskOverrides[taskId];
+            localStorage.setItem('hw_custom_tasks', JSON.stringify(customTasks));
+            localStorage.setItem('hw_task_overrides', JSON.stringify(taskOverrides));
+            renderAll();
+            pushRemoteState();
+        }
+
+        function switchView(view) {
+            currentView = view;
+            document.getElementById('view-checklist').classList.toggle('hidden', view !== 'checklist');
+            document.getElementById('view-calendar').classList.toggle('hidden', view !== 'calendar');
+            document.getElementById('tab-checklist').className = view === 'checklist'
+                ? 'px-2.5 py-1 rounded-md theme-accent-bg text-white shadow transition'
+                : 'px-2.5 py-1 rounded-md text-slate-300 hover:text-white transition';
+            document.getElementById('tab-calendar').className = view === 'calendar'
+                ? 'px-2.5 py-1 rounded-md theme-accent-bg text-white shadow transition'
+                : 'px-2.5 py-1 rounded-md text-slate-300 hover:text-white transition';
+            renderAll();
+        }
+
+        function selectCourse(course) {
+            activeCourse = course;
+            renderAll();
+        }
+
+        function renderFilters(allItems) {
+            const courses = ['ALL', ...new Set(allItems.map(i => i.course))];
+            const container = document.getElementById('course-filters');
+            container.innerHTML = '';
+            courses.forEach(c => {
+                const active = c === activeCourse;
+                const btn = document.createElement('button');
+                btn.textContent = c;
+                btn.className = 'px-3 py-1 rounded-full text-xs font-medium border transition shadow ' +
+                    (active ? 'theme-accent-bg border-white/30 text-white' : 'glass-card text-slate-200 hover:text-white');
+                btn.onclick = () => selectCourse(c);
+                container.appendChild(btn);
+            });
+        }
+
+        // Tracks ONLY tasks due within the next 48 hours
+        function renderStats(allItems) {
+            const now = new Date();
+            now.setHours(0, 0, 0, 0);
+            const twoDays = new Date(now.getTime() + 2 * 86400000);
+
+            const due48Items = allItems.filter(i => {
+                if (!i.iso_date) return false;
+                const d = new Date(i.iso_date + 'T00:00:00');
+                return d >= now && d <= twoDays;
+            });
+
+            const total48 = due48Items.length;
+            const done48 = due48Items.filter(i => completedIds[i._id]).length;
+            const pct48 = total48 ? Math.round((done48 / total48) * 100) : 100;
+
+            document.getElementById('progress-text').textContent = total48
+                ? `${done48} / ${total48} Due in 48h Completed (${pct48}%)`
+                : `All caught up for the next 48h! (100%)`;
+            document.getElementById('progress-bar').style.width = `${pct48}%`;
+        }
+
+        function renderChecklist(items) {
+            const container = document.getElementById('view-checklist');
+            if (!items.length) {
+                container.innerHTML = `<div class="glass-card border rounded-xl p-10 text-center text-slate-200 shadow-lg">🎉 All caught up! (Uncheck "Hide completed tasks" to view finished items)</div>`;
+                return;
+            }
+
+            container.innerHTML = items.map(item => {
+                const id = item._id;
+                const isDone = !!completedIds[id];
+                const badgeStyle = getCourseStyle(item.course);
+                const isCustom = customTasks.some(t => getBaseTaskId(t) === id);
+                const readableDate = formatShortDate(item.iso_date);
+                const readableTime = formatTime12h(item.time_24);
+
+                return `
+                <div class="glass-card border ${isDone ? 'opacity-55' : 'hover:border-white/35'} rounded-xl p-4 flex items-start gap-4 transition shadow-lg">
+                    <input type="checkbox" ${isDone ? 'checked' : ''} onchange="toggleComplete('${id}', event)"
+                        class="mt-1 h-5 w-5 rounded border-slate-500 bg-slate-800 text-indigo-600 focus:ring-0 cursor-pointer">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center flex-wrap gap-2 mb-1">
+                            <span class="px-2.5 py-0.5 rounded-full text-xs font-medium border ${badgeStyle}">${item.course}</span>
+                            <button onclick="openEditModal('${id}')" title="Click to change date or time"
+                                class="text-xs font-medium text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/25 px-2.5 py-0.5 rounded flex items-center gap-1.5 transition">
+                                <span>📅 ${readableDate}</span>
+                                <span class="text-sky-200">• ⏰ ${readableTime}</span>
+                                ${item._is_edited ? `<span class="text-[10px] text-emerald-300">(edited)</span>` : (item._rule_shifted ? `<span class="text-[10px] text-cyan-300">(night-before)</span>` : '')}
+                            </button>
+                        </div>
+                        <h3 class="text-base font-semibold ${isDone ? 'line-through text-slate-400' : 'text-white'}">${item.title}</h3>
+                        <p class="text-xs text-slate-200/85 mt-1">${item.status_or_details || ''}</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="openEditModal('${id}')" title="Edit Date & Time" class="text-xs px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-slate-100 transition">✏️</button>
+                        ${isCustom ? `<button onclick="deleteCustomTask('${id}')" title="Delete Custom Task" class="text-xs px-2 py-1 rounded bg-white/10 hover:bg-rose-900/50 text-slate-200 hover:text-rose-300 transition">✕</button>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderCalendar(items) {
+            const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+            document.getElementById('cal-month-title').textContent = `${monthNames[calMonth]} ${calYear}`;
+
+            const firstDay = new Date(calYear, calMonth, 1).getDay();
+            const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+            const todayIso = new Date().toISOString().slice(0, 10);
+
+            const grid = document.getElementById('calendar-grid');
+            let cells = '';
+
+            for (let i = 0; i < firstDay; i++) {
+                cells += `<div class="min-h-[120px] bg-slate-950/30 p-2"></div>`;
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const iso = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const dayTasks = items.filter(i => i.iso_date === iso);
+                const isToday = iso === todayIso;
+
+                const tasksHtml = dayTasks.map(t => {
+                    const id = t._id;
+                    const isDone = !!completedIds[id];
+                    const badgeStyle = getCourseStyle(t.course);
+                    const readableTime = formatTime12h(t.time_24);
+                    return `
+                    <div class="text-[11px] leading-tight p-1.5 rounded border transition ${badgeStyle} ${isDone ? 'line-through opacity-40' : ''}">
+                        <div class="flex items-center justify-between gap-1">
+                            <span onclick="toggleComplete('${id}', event)" class="font-bold truncate cursor-pointer flex-1">${t.course}</span>
+                            <button onclick="openEditModal('${id}')" title="Reschedule" class="text-[10px] opacity-70 hover:opacity-100">✏️</button>
+                        </div>
+                        <div onclick="openEditModal('${id}')" class="text-[10px] font-semibold text-amber-300 cursor-pointer">⏰ ${readableTime}</div>
+                        <div onclick="toggleComplete('${id}', event)" class="truncate cursor-pointer">${t.title}</div>
+                    </div>`;
+                }).join('');
+
+                cells += `
+                <div class="min-h-[120px] p-2 flex flex-col gap-1.5 ${isToday ? 'bg-white/15' : 'bg-slate-900/40'}">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs font-bold ${isToday ? 'theme-accent-bg text-white px-2 py-0.5 rounded-full' : 'text-slate-200'}">${day}</span>
+                        ${dayTasks.length ? `<span class="text-[10px] text-slate-300">${dayTasks.length} due</span>` : ''}
+                    </div>
+                    <div class="space-y-1 overflow-y-auto max-h-[105px] custom-scroll">${tasksHtml}</div>
+                </div>`;
+            }
+
+            grid.innerHTML = cells;
+        }
+
+        function changeMonth(delta) {
+            calMonth += delta;
+            if (calMonth < 0) { calMonth = 11; calYear--; }
+            if (calMonth > 11) { calMonth = 0; calYear++; }
+            renderAll();
+        }
+
+        function resetToToday() {
+            const now = new Date();
+            calYear = now.getFullYear();
+            calMonth = now.getMonth();
+            renderAll();
+        }
+
+        function toggleModal(show) {
+            const modal = document.getElementById('task-modal');
+            modal.classList.toggle('hidden', !show);
+            modal.classList.toggle('flex', show);
+        }
+
+        function addCustomTask() {
+            const course = document.getElementById('custom-course').value.trim() || 'Personal';
+            const title = document.getElementById('custom-title').value.trim();
+            const iso_date = document.getElementById('custom-date').value || new Date().toISOString().slice(0, 10);
+            const time_24 = document.getElementById('custom-time').value || '22:00';
+            const status_or_details = document.getElementById('custom-details').value.trim();
+            if (!title) return;
+
+            const newTask = {
+                course, title, iso_date, _orig_iso_date: iso_date,
+                time_24, _orig_time_24: time_24, due_date: iso_date, status_or_details
+            };
+            newTask._id = getBaseTaskId(newTask);
+
+            customTasks.push(newTask);
+            localStorage.setItem('hw_custom_tasks', JSON.stringify(customTasks));
+            toggleModal(false);
+            renderAll();
+            pushRemoteState();
+        }
+
+        function renderAll() {
+            const allItems = getAllAssignments();
+            renderFilters(allItems);
+            renderStats(allItems);
+
+            const hideBox = document.getElementById('hide-completed');
+            if (hideBox) hideBox.checked = hideCompleted;
+
+            const filtered = allItems.filter(item => {
+                if (activeCourse !== 'ALL' && item.course !== activeCourse) return false;
+                if (hideCompleted && completedIds[item._id]) return false;
+                return true;
+            });
+
+            renderChecklist(filtered);
+            renderCalendar(filtered);
+        }
+
+        applyTheme();
+        animateCanvas();
+        renderAll();
+        pullRemoteState();
+    </script>
+</body>
+</html>"""
+
+
+def build_and_open_app(assignments: list):
+    assignments_json = json.dumps(assignments)
+    last_synced = datetime.now().strftime("%B %d, %Y at %I:%M %p")
+
+    html_content = (
+        HTML_TEMPLATE
+        .replace("__ASSIGNMENTS_JSON__", assignments_json)
+        .replace("__LAST_SYNCED__", last_synced)
+        .replace("__GH_USER__", GITHUB_USERNAME)
+        .replace("__GH_REPO__", GITHUB_REPO)
+    )
+
+    with open(APP_FILE, "w", encoding="utf-8") as f:
+        f.write(html_content)
+
+    app_path = os.path.abspath(APP_FILE)
+    print(f"Loaded {len(assignments)} assignments from '{MD_FILE}'!")
+    print(f"Opening local web app: {app_path}")
+    if not os.environ.get("GITHUB_ACTIONS"):
+    webbrowser.open(f"file://{app_path}")
+
+    upload_to_github("index.html", html_content)
+
+
+if __name__ == "__main__":
+    items = parse_markdown_file(MD_FILE)
+    build_and_open_app(items)

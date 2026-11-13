@@ -79,7 +79,7 @@
       "skipExamsEssays": true
     },
     "Trinity and Christology": {
-      "shiftDays": 0,
+      "shiftDays": -1,
       "timeMode": "force",
       "customTime": "22:00",
       "skipExamsEssays": true

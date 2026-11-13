@@ -265,7 +265,7 @@
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div class="flex items-center gap-2 flex-wrap">
                         <span id="theme-badge" onclick="openSettingsPage(true)" class="cursor-pointer text-[11px] font-semibold px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 text-white border border-white/15 transition"></span>
-                        <p class="text-xs text-slate-200/80">Refreshed: November 13, 2026 at 01:45 PM • <span id="sync-status" class="text-slate-300">Local mode</span></p>
+                        <p class="text-xs text-slate-200/80">Refreshed: November 13, 2026 at 01:52 PM • <span id="sync-status" class="text-slate-300">Local mode</span></p>
                     </div>
                     <div class="flex items-center gap-2">
                         <button onclick="pullRemoteState()" class="px-2.5 py-1 rounded-lg glass-card hover:bg-white/10 border text-slate-100 text-xs font-medium transition">🔄 Sync Now</button>
@@ -1615,7 +1615,7 @@
 
         function extractTaskTokens(str) {
             const s = (str || '').toLowerCase();
-            const nums = (s.match(/\d+[a-z]?/g) || []).join('_');
+            const nums = (s.match(/\\d+[a-z]?/g) || []).join('_');
             const words = (s.match(/[a-z]{4,}/g) || []).filter(w => !['reading', 'class', 'assignment', 'chapter', 'module', 'week'].includes(w));
             return { nums, words };
         }
@@ -1665,7 +1665,7 @@
                 const [savedCourse, savedCleanTitle, savedDate] = parts;
 
                 if (savedDate === origDate && coursesMatchFuzzy(item.course, savedCourse)) {
-                    const savedNums = (savedCleanTitle.match(/\d+[a-z]?/g) || []).join('_');
+                    const savedNums = (savedCleanTitle.match(/\\d+[a-z]?/g) || []).join('_');
                     if (curTokens.nums && savedNums && (curTokens.nums === savedNums || savedNums.includes(curTokens.nums) || curTokens.nums.includes(savedNums))) {
                         return savedId;
                     }
@@ -1923,12 +1923,8 @@
 
         function resetForNewSemester() {
             const ok = confirm(
-                "Start a New Semester?
-
-" +
-                "This will clear all completed checkmarks, locked assignment titles, custom tasks, date edits, and course rules/colors across your devices.
-
-" +
+                "Start a New Semester?\n\n" +
+                "This will clear all completed checkmarks, locked assignment titles, custom tasks, date edits, and course rules/colors across your devices.\n\n" +
                 "(Your visual theme, box opacity, background fade, and GitHub token will be kept!)"
             );
             if (!ok) return;

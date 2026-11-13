@@ -40,5 +40,6 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GH_PAT: ${{ secrets.GH_PAT }}
           GITHUB_ACTIONS: "true"
+          TZ: America/New_York
         run: |
           python homework_bot.py

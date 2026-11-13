@@ -265,7 +265,7 @@
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div class="flex items-center gap-2 flex-wrap">
                         <span id="theme-badge" onclick="openSettingsPage(true)" class="cursor-pointer text-[11px] font-semibold px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 text-white border border-white/15 transition"></span>
-                        <p class="text-xs text-slate-200/80">Refreshed: November 13, 2026 at 01:25 PM • <span id="sync-status" class="text-slate-300">Local mode</span></p>
+                        <p class="text-xs text-slate-200/80">Refreshed: November 13, 2026 at 01:45 PM • <span id="sync-status" class="text-slate-300">Local mode</span></p>
                     </div>
                     <div class="flex items-center gap-2">
                         <button onclick="pullRemoteState()" class="px-2.5 py-1 rounded-lg glass-card hover:bg-white/10 border text-slate-100 text-xs font-medium transition">🔄 Sync Now</button>
@@ -452,7 +452,18 @@
                     <button onclick="saveSyncToken()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold">Save Token & Sync</button>
                 </div>
             </div>
-        </div>
+
+            <!-- Section 5: 1-Click New Semester Reset -->
+            <div class="bg-rose-950/35 border border-rose-500/30 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                    <div class="text-sm font-bold text-rose-200">🎓 Start a New Semester (Clean Slate)</div>
+                    <div class="text-xs text-slate-300">Clears old completed tasks, locked titles, custom tasks, and course rules/colors across cloud & local storage while keeping your theme, opacity, and GitHub token.</div>
+                </div>
+                <button id="semester-reset-btn" type="button" onclick="resetForNewSemester()"
+                    class="shrink-0 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs sm:text-sm font-bold shadow transition">
+                    🗑️ New Semester Reset
+                </button>
+            </div>
     </div>
 
     <!-- Modal 1: Add Custom Task -->
@@ -517,7 +528,7 @@
     </div>
 
     <script>
-        const BOT_ASSIGNMENTS = [{"course": "Christian Moral Principles", "title": "THE-115 CCC Assessment Exam 2", "due_date": "2026-11-14, 11:59 PM", "iso_date": "2026-11-14", "time_24": "23:59", "status_or_details": "50 points"}, {"course": "Trinity and Christology", "title": "Journal for Class 36", "due_date": "2026-11-15, 11:59 PM", "iso_date": "2026-11-15", "time_24": "23:59", "status_or_details": "10 points"}, {"course": "Trinity and Christology", "title": "Journal for Class 37", "due_date": "2026-11-17, 11:59 PM", "iso_date": "2026-11-17", "time_24": "23:59", "status_or_details": "10 points"}, {"course": "Foundations of Ethics", "title": "Interpretive Philosophical Essay 2", "due_date": "2026-11-19, 08:00 AM", "iso_date": "2026-11-19", "time_24": "08:00", "status_or_details": "12.5 points"}, {"course": "Trinity and Christology", "title": "Journal for Class 38", "due_date": "2026-11-19, 11:59 PM", "iso_date": "2026-11-19", "time_24": "23:59", "status_or_details": "10 points"}, {"course": "Elementary Spanish II", "title": "Esc L8A", "due_date": "2026-11-20, 09:00 AM", "iso_date": "2026-11-20", "time_24": "09:00", "status_or_details": "100 points"}];
+        const BOT_ASSIGNMENTS = [{"course": "Christian Moral Principles", "title": "THE-115 CCC Assessment Exam 2", "due_date": "2026-11-14, 11:59 PM", "iso_date": "2026-11-14", "time_24": "23:59", "status_or_details": "Complete Catechism Assessment"}, {"course": "Elementary Spanish II", "title": "Lecci\u00f3n 8", "due_date": "2026-11-15, 11:59 PM", "iso_date": "2026-11-15", "time_24": "23:59", "status_or_details": "Estructura 8.3: 11 activities on VHL Central (Estimated time: 58 minutes)"}, {"course": "Trinity and Christology", "title": "Journal for Class 36", "due_date": "2026-11-16, 04:59 AM", "iso_date": "2026-11-16", "time_24": "04:59", "status_or_details": "Reading: Pope Benedict XVI, Jesus of Nazareth, Chapter 4 Epilogue; CCC 512-534"}, {"course": "Foundations of Ethics", "title": "John Duns Scotus, Will and Morality, 252\u2013282", "due_date": "2026-11-17", "iso_date": "2026-11-17", "time_24": "", "status_or_details": "Readings/Topic Covered for Week 13"}, {"course": "Elementary Spanish II", "title": "Lecci\u00f3n 8", "due_date": "2026-11-17, 11:59 PM", "iso_date": "2026-11-17", "time_24": "23:59", "status_or_details": "Estructura 8.4: 13 activities on VHL Central (Estimated time: 1 hour 10 minutes)"}, {"course": "Trinity and Christology", "title": "Journal for Class 37", "due_date": "2026-11-18, 04:59 AM", "iso_date": "2026-11-18", "time_24": "04:59", "status_or_details": "Reading: Shorter Summa Ch. 227-230"}, {"course": "Foundations of Ethics", "title": "Interpretive Philosophical Essay # 2 Due", "due_date": "2026-11-19", "iso_date": "2026-11-19", "time_24": "", "status_or_details": "Reading: John Duns Scotus, Will and Morality, 283\u2013314"}, {"course": "Elementary Spanish II", "title": "Lecci\u00f3n 8 Activities", "due_date": "2026-11-19, 11:59 PM", "iso_date": "2026-11-19", "time_24": "23:59", "status_or_details": "3 activities on VHL Central (Estimated time: 37 minutes)"}, {"course": "Trinity and Christology", "title": "Journal for Class 38", "due_date": "2026-11-20, 04:59 AM", "iso_date": "2026-11-20", "time_24": "04:59", "status_or_details": "Reading: Shorter Summa Ch. 231-233"}, {"course": "Elementary Spanish II", "title": "Lecci\u00f3n 8 Activities", "due_date": "2026-11-22, 11:59 PM", "iso_date": "2026-11-22", "time_24": "23:59", "status_or_details": "11 activities on VHL Central (Estimated time: 55 minutes)"}, {"course": "Trinity and Christology", "title": "Journal for Class 39", "due_date": "2026-11-23, 04:59 AM", "iso_date": "2026-11-23", "time_24": "04:59", "status_or_details": "Reading: Shorter Summa Ch. 234-235, Summa theologiae, III.Q.49.article 6"}];
         const GH_USER = "DominatorDomPro";
         const GH_REPO = "homework-hub";
 
@@ -1590,11 +1601,81 @@
             return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
         }
 
+       let lockedTitles = JSON.parse(localStorage.getItem('hw_locked_titles') || '{}');
+
+        function normalizeCourseNameJS(courseName) {
+            const c = (courseName || '').toLowerCase().trim();
+            if (c.includes('spn') || c.includes('spanish') || c.includes('vhl')) return 'Elementary Spanish II';
+            if (c.includes('14917') || c.includes('philosophy of god')) return 'Philosophy of God';
+            if (c.includes('16213') || c.includes('trinity') || c.includes('christology')) return 'Trinity and Christology';
+            if (c.includes('15459') || c.includes('foundations of ethics') || c === 'ethics') return 'Foundations of Ethics';
+            if (c.includes('15604') || c.includes('moral principles') || c.includes('christian moral') || c.includes('the-115')) return 'Christian Moral Principles';
+            return courseName;
+        }
+
+        function extractTaskTokens(str) {
+            const s = (str || '').toLowerCase();
+            const nums = (s.match(/\d+[a-z]?/g) || []).join('_');
+            const words = (s.match(/[a-z]{4,}/g) || []).filter(w => !['reading', 'class', 'assignment', 'chapter', 'module', 'week'].includes(w));
+            return { nums, words };
+        }
+
+        let lockedTitles = JSON.parse(localStorage.getItem('hw_locked_titles') || '{}');
+
+        function extractTaskTokens(str) {
+            const s = (str || '').toLowerCase();
+            const nums = (s.match(/\d+[a-z]?/g) || []).join('_');
+            const words = (s.match(/[a-z]{4,}/g) || []).filter(w =>
+                !['reading', 'class', 'assignment', 'chapter', 'module', 'week', 'course', 'online'].includes(w)
+            );
+            return { nums, words };
+        }
+
+        function coursesMatchFuzzy(courseA, courseB) {
+            const a = (courseA || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const b = (courseB || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (a === b || a.includes(b) || b.includes(a)) return true;
+            const wordsA = (courseA || '').toLowerCase().match(/[a-z]{4,}/g) || [];
+            const wordsB = (courseB || '').toLowerCase().match(/[a-z]{4,}/g) || [];
+            return wordsA.some(w => wordsB.includes(w));
+        }
+
         function getBaseTaskId(item) {
             if (item._id) return item._id;
-            const cleanTitle = (item.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
             const origDate = item._orig_iso_date || item.iso_date || '';
-            return encodeURIComponent(item.course + '__' + cleanTitle + '__' + origDate);
+            const cleanTitle = (item.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const exactId = encodeURIComponent(item.course + '__' + cleanTitle + '__' + origDate);
+
+            if (completedIds[exactId] || taskOverrides[exactId] || lockedTitles[exactId]) {
+                return exactId;
+            }
+
+            // Fuzzy-match against already saved tasks on the same date & course
+            const knownIds = new Set([
+                ...Object.keys(completedIds),
+                ...Object.keys(taskOverrides),
+                ...Object.keys(lockedTitles)
+            ]);
+            const curTokens = extractTaskTokens(item.title);
+
+            for (const savedId of knownIds) {
+                const decoded = decodeURIComponent(savedId);
+                const parts = decoded.split('__');
+                if (parts.length !== 3) continue;
+                const [savedCourse, savedCleanTitle, savedDate] = parts;
+
+                if (savedDate === origDate && coursesMatchFuzzy(item.course, savedCourse)) {
+                    const savedNums = (savedCleanTitle.match(/\d+[a-z]?/g) || []).join('_');
+                    if (curTokens.nums && savedNums && (curTokens.nums === savedNums || savedNums.includes(curTokens.nums) || curTokens.nums.includes(savedNums))) {
+                        return savedId;
+                    }
+                    if (curTokens.words.some(w => savedCleanTitle.includes(w))) {
+                        return savedId;
+                    }
+                }
+            }
+
+            return exactId;
         }
 
         function formatTime12h(time24) {
@@ -1615,12 +1696,30 @@
         }
 
         function getAllAssignments() {
+            let titlesUpdated = false;
+            const knownCourses = Object.keys(courseRules).concat(Object.keys(courseColors));
+
             const merged = [...BOT_ASSIGNMENTS, ...customTasks].map(raw => {
                 const copy = { ...raw };
+
+                // If a course already has saved rules/colors under a slightly cleaner name, snap to that name
+                const matchedCourse = knownCourses.find(kc => coursesMatchFuzzy(copy.course, kc));
+                if (matchedCourse) {
+                    copy.course = matchedCourse;
+                }
+
                 copy._orig_iso_date = raw._orig_iso_date || raw.iso_date;
                 copy._orig_time_24 = raw._orig_time_24 !== undefined ? raw._orig_time_24 : (raw.time_24 || '');
                 const id = getBaseTaskId(copy);
                 copy._id = id;
+
+                // Lock the display title once seen so future scrapes don't rename it
+                if (lockedTitles[id]) {
+                    copy.title = lockedTitles[id];
+                } else if (copy.title) {
+                    lockedTitles[id] = copy.title;
+                    titlesUpdated = true;
+                }
 
                 const rule = getRuleForCourse(copy.course);
                 const tLow = (copy.title || '').toLowerCase();
@@ -1652,6 +1751,10 @@
                 }
                 return copy;
             });
+
+            if (titlesUpdated) {
+                localStorage.setItem('hw_locked_titles', JSON.stringify(lockedTitles));
+            }
 
             return merged.sort((a, b) => {
                 const dateCmp = (a.iso_date || '9999').localeCompare(b.iso_date || '9999');
@@ -1804,6 +1907,8 @@
             }, 2600);
         }
 
+        let lastSemesterReset = parseInt(localStorage.getItem('hw_last_semester_reset') || '0', 10);
+
         function resetAllCourseRules() {
             courseRules = {};
             courseColors = {};
@@ -1814,6 +1919,53 @@
             populateCourseRulesAndColors();
             renderAll();
             pushRemoteState();
+        }
+
+        function resetForNewSemester() {
+            const ok = confirm(
+                "Start a New Semester?
+
+" +
+                "This will clear all completed checkmarks, locked assignment titles, custom tasks, date edits, and course rules/colors across your devices.
+
+" +
+                "(Your visual theme, box opacity, background fade, and GitHub token will be kept!)"
+            );
+            if (!ok) return;
+
+            completedIds = {};
+            taskOverrides = {};
+            customTasks = [];
+            courseRules = {};
+            courseColors = {};
+            if (typeof lockedTitles !== 'undefined') lockedTitles = {};
+            globalDefaultTime = '22:00';
+            activeCourse = 'ALL';
+            lastSemesterReset = Date.now();
+
+            localStorage.removeItem('hw_completed_ids');
+            localStorage.removeItem('hw_task_overrides');
+            localStorage.removeItem('hw_custom_tasks');
+            localStorage.removeItem('hw_course_rules');
+            localStorage.removeItem('hw_course_colors');
+            localStorage.removeItem('hw_locked_titles');
+            localStorage.setItem('hw_global_default_time', '22:00');
+            localStorage.setItem('hw_last_semester_reset', String(lastSemesterReset));
+
+            populateCourseRulesAndColors();
+            renderAll();
+            pushRemoteState();
+
+            const btn = document.getElementById('semester-reset-btn');
+            if (btn) {
+                const orig = '🗑️ New Semester Reset';
+                btn.textContent = '✅ Semester Reset Complete!';
+                btn.classList.replace('bg-rose-600', 'bg-emerald-600');
+                setTimeout(() => {
+                    btn.textContent = orig;
+                    btn.classList.replace('bg-emerald-600', 'bg-rose-600');
+                }, 2800);
+            }
         }
 
         // --- TWO-WAY CLOUD SYNC ---
@@ -1830,6 +1982,21 @@
                 if (res.ok) {
                     const remoteData = await res.json();
                     if (remoteData && (remoteData._version >= 2 || remoteData.completed || remoteData.overrides)) {
+                        // If a New Semester Reset happened on another device more recently, wipe local state first
+                        if (remoteData.lastSemesterReset && remoteData.lastSemesterReset > lastSemesterReset) {
+                            completedIds = {};
+                            taskOverrides = {};
+                            customTasks = [];
+                            courseRules = {};
+                            courseColors = {};
+                            if (typeof lockedTitles !== 'undefined') {
+                                lockedTitles = {};
+                                localStorage.removeItem('hw_locked_titles');
+                            }
+                            lastSemesterReset = remoteData.lastSemesterReset;
+                            localStorage.setItem('hw_last_semester_reset', String(lastSemesterReset));
+                        }
+
                         completedIds = { ...completedIds, ...(remoteData.completed || {}) };
                         taskOverrides = { ...taskOverrides, ...(remoteData.overrides || {}) };
                         if (remoteData.courseRules) courseRules = { ...courseRules, ...remoteData.courseRules };
@@ -1884,7 +2051,8 @@
                 }
 
                 const payloadObj = {
-                    _version: 4,
+                    _version: 5,
+                    lastSemesterReset: lastSemesterReset,
                     completed: completedIds,
                     overrides: taskOverrides,
                     courseRules: courseRules,

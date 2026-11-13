@@ -26,7 +26,7 @@ jobs:
 
       - name: 3. Install Python packages & Playwright Chromium
         run: |
-          pip install playwright google-genai pydantic pypdf python-docx
+          pip install playwright google-genai pydantic pypdf python-docx beautifulsoup4 requests
           playwright install --with-deps chromium
 
       - name: 4. Restore auth.json login session from GitHub Secrets

@@ -213,8 +213,11 @@
     </style>
 </head>
 <body class="text-slate-100 min-h-screen pb-28 relative overflow-x-hidden">
-    <!-- Full-Screen Immersive Cartoon World / Interior Scenery -->
+<!-- Full-Screen Immersive Cartoon World / Interior Scenery -->
     <div id="theme-scenery" class="fixed inset-0 w-screen h-screen pointer-events-none z-0 overflow-hidden"></div>
+
+    <!-- Background Fade-to-Black Dimmer Layer -->
+    <div id="theme-dimmer" class="fixed inset-0 w-screen h-screen pointer-events-none z-0 bg-black transition-opacity duration-150" style="opacity: 0;"></div>
 
     <!-- Animated Particle Canvas (Ambient Weather + Task Completion Bursts) -->
     <canvas id="theme-canvas" class="fixed inset-0 pointer-events-none z-20"></canvas>
@@ -262,7 +265,7 @@
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div class="flex items-center gap-2 flex-wrap">
                         <span id="theme-badge" onclick="openSettingsPage(true)" class="cursor-pointer text-[11px] font-semibold px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 text-white border border-white/15 transition"></span>
-                        <p class="text-xs text-slate-200/80">Refreshed: November 12, 2026 at 07:10 PM • <span id="sync-status" class="text-slate-300">Local mode</span></p>
+                        <p class="text-xs text-slate-200/80">Refreshed: November 12, 2026 at 09:04 PM • <span id="sync-status" class="text-slate-300">Local mode</span></p>
                     </div>
                     <div class="flex items-center gap-2">
                         <button onclick="pullRemoteState()" class="px-2.5 py-1 rounded-lg glass-card hover:bg-white/10 border text-slate-100 text-xs font-medium transition">🔄 Sync Now</button>
@@ -329,24 +332,59 @@
                 <button onclick="openSettingsPage(false)" class="px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-sm font-semibold text-white transition">✕ Close</button>
             </div>
 
-            <!-- Section 1: Task Box Opacity Slider -->
-            <div id="opacity-slider-section" class="bg-slate-950/85 border border-white/15 rounded-xl p-4 space-y-2 transition-all duration-150">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <div class="text-sm font-bold text-white">🪟 Task Box Opacity</div>
-                        <div class="text-xs text-slate-300">Hold & slide to hide settings and preview your task boxes live</div>
+            <!-- Section 1: Visual & Distraction Controls (Opacity, Background Fade, Particles) -->
+            <div id="opacity-slider-section" class="bg-slate-950/85 border border-white/15 rounded-xl p-4 space-y-4 transition-all duration-150">
+                <!-- Slider A: Task Box Opacity -->
+                <div class="space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="text-sm font-bold text-white">🪟 Task Box Opacity</div>
+                            <div class="text-xs text-slate-300">Hold & slide to preview task box transparency live</div>
+                        </div>
+                        <span id="opacity-value-label" class="text-sm font-bold text-amber-300">68%</span>
                     </div>
-                    <span id="opacity-value-label" class="text-sm font-bold text-amber-300">68%</span>
+                    <input id="card-opacity-slider" type="range" min="15" max="95" value="68"
+                        onmousedown="setOpacityPreviewMode(true)"
+                        onmouseup="setOpacityPreviewMode(false)"
+                        onmouseleave="setOpacityPreviewMode(false)"
+                        ontouchstart="setOpacityPreviewMode(true)"
+                        ontouchend="setOpacityPreviewMode(false)"
+                        oninput="updateCardOpacity(this.value, false)"
+                        onchange="updateCardOpacity(this.value, true); setOpacityPreviewMode(false)"
+                        class="w-full accent-indigo-500 cursor-pointer h-2 bg-slate-800 rounded-lg">
                 </div>
-                <input id="card-opacity-slider" type="range" min="15" max="95" value="68"
-                    onmousedown="setOpacityPreviewMode(true)"
-                    onmouseup="setOpacityPreviewMode(false)"
-                    onmouseleave="setOpacityPreviewMode(false)"
-                    ontouchstart="setOpacityPreviewMode(true)"
-                    ontouchend="setOpacityPreviewMode(false)"
-                    oninput="updateCardOpacity(this.value, false)"
-                    onchange="updateCardOpacity(this.value, true); setOpacityPreviewMode(false)"
-                    class="w-full accent-indigo-500 cursor-pointer h-2 bg-slate-800 rounded-lg">
+
+                <!-- Slider B: Background Fade to Black (Distraction Level) -->
+                <div class="space-y-1.5 pt-3 border-t border-white/10">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="text-sm font-bold text-white">🌑 Background Fade to Black</div>
+                            <div class="text-xs text-slate-300">Dim the background scenery to reduce visual distraction</div>
+                        </div>
+                        <span id="bg-dim-value-label" class="text-sm font-bold text-amber-300">0%</span>
+                    </div>
+                    <input id="bg-dim-slider" type="range" min="0" max="95" value="0"
+                        onmousedown="setOpacityPreviewMode(true)"
+                        onmouseup="setOpacityPreviewMode(false)"
+                        onmouseleave="setOpacityPreviewMode(false)"
+                        ontouchstart="setOpacityPreviewMode(true)"
+                        ontouchend="setOpacityPreviewMode(false)"
+                        oninput="updateBgDim(this.value, false)"
+                        onchange="updateBgDim(this.value, true); setOpacityPreviewMode(false)"
+                        class="w-full accent-indigo-500 cursor-pointer h-2 bg-slate-800 rounded-lg">
+                </div>
+
+                <!-- Toggle C: Ambient Particles On/Off -->
+                <div class="flex items-center justify-between pt-3 border-t border-white/10">
+                    <div>
+                        <div class="text-sm font-bold text-white">✨ Floating Background Particles</div>
+                        <div class="text-xs text-slate-300">Toggle snow, leaves, petals, fireworks, and completion bursts</div>
+                    </div>
+                    <button id="particles-toggle-btn" type="button" onclick="toggleParticles()"
+                        class="px-3.5 py-1.5 rounded-xl text-xs font-bold border transition bg-emerald-600/30 border-emerald-400/50 text-emerald-200">
+                        ✨ Particles: ON
+                    </button>
+                </div>
             </div>
 
             <!-- Section 2: Seasonal & Holiday Theme Picker -->
@@ -1206,13 +1244,15 @@
             return buildScenerySvg(themeKey).replace('viewBox="0 0 1440 900"', 'viewBox="420 0 600 900"');
         }
 
-        // --- PARTICLE & COMPLETION BURST ENGINE ---
+      // --- PARTICLE & COMPLETION BURST ENGINE (50% SPEED) ---
         const canvas = document.getElementById('theme-canvas');
         const ctx = canvas.getContext('2d');
         let particles = [];
         let fireworks = [];
         let completionBursts = [];
         let currentCanvasTheme = '';
+        let bgDim = parseInt(localStorage.getItem('hw_bg_dim') || '0', 10);
+        let particlesEnabled = localStorage.getItem('hw_particles_enabled') !== 'false';
 
         function resizeCanvas() {
             canvas.width = window.innerWidth;
@@ -1236,7 +1276,8 @@
             if (themeKey === 'christmas') {
                 return {
                     x: Math.random() * w, y: randomY ? Math.random() * h : h + 10,
-                    vx: (Math.random() - 0.5) * 0.4, vy: -(0.25 + Math.random() * 0.55),
+                    vx: (Math.random() - 0.5) * 0.2,
+                    vy: -(0.125 + Math.random() * 0.275),
                     r: 1.8 + Math.random() * 3.2, angle: Math.random() * Math.PI * 2,
                     color: idx % 2 === 0 ? 'rgba(253, 224, 71, 0.35)' : 'rgba(251, 146, 60, 0.28)'
                 };
@@ -1245,112 +1286,100 @@
             const springColors = ['#fbcfe8', '#f9a8d4', '#f472b6', '#fde047'];
             return {
                 x: Math.random() * w, y: randomY ? Math.random() * h : -15,
-                vx: (Math.random() - 0.5) * 1.1, vy: 0.7 + Math.random() * 1.5,
+                vx: (Math.random() - 0.5) * 0.55,
+                vy: 0.35 + Math.random() * 0.75,
                 r: 2.5 + Math.random() * 3.5, angle: Math.random() * Math.PI * 2,
-                spin: (Math.random() - 0.5) * 0.04,
+                spin: (Math.random() - 0.5) * 0.02,
                 color: themeKey === 'autumn' ? leafColors[idx % 4] : ((themeKey === 'spring' || themeKey === 'easter') ? springColors[idx % 4] : '#ffffff')
             };
         }
 
-        // Triggered whenever a user completes a task!
+        // Spawns only the particle burst on completion (encouraging toast message removed)
         let toastTimer = null;
         function triggerTaskCompletionCelebration(evt) {
+            if (!particlesEnabled) return;
             const activeKey = getActiveThemeKey();
             const cfg = THEMES[activeKey] || THEMES.autumn;
             const originX = (evt && evt.clientX) ? evt.clientX : window.innerWidth / 2;
             const originY = (evt && evt.clientY) ? evt.clientY : window.innerHeight / 2;
 
-            // 1. Spawn 32 themed burst particles around the checkbox
             for (let s = 0; s < 32; s++) {
                 const ang = (Math.PI * 2 * s) / 32 + (Math.random() - 0.5) * 0.2;
-                const spd = 2 + Math.random() * 5.5;
+                const spd = 1.0 + Math.random() * 2.75;
                 completionBursts.push({
                     x: originX, y: originY,
                     vx: Math.cos(ang) * spd,
-                    vy: Math.sin(ang) * spd - 1.8,
+                    vy: Math.sin(ang) * spd - 0.9,
                     r: 3.5 + Math.random() * 3.5,
                     alpha: 1,
                     color: cfg.burstColors[s % cfg.burstColors.length]
                 });
             }
-
-            // 2. Show Themed Encouraging Toast Message
-            const msg = cfg.messages[Math.floor(Math.random() * cfg.messages.length)];
-            document.getElementById('reward-toast-icon').textContent = cfg.icon;
-            document.getElementById('reward-toast-title').textContent = msg;
-            document.getElementById('reward-toast-sub').textContent = `${cfg.name} • Keep up the momentum!`;
-
-            const toast = document.getElementById('reward-toast');
-            toast.classList.remove('opacity-0', '-translate-y-4');
-            toast.classList.add('opacity-100', 'translate-y-0');
-            if (toastTimer) clearTimeout(toastTimer);
-            toastTimer = setTimeout(() => {
-                toast.classList.add('opacity-0', '-translate-y-4');
-                toast.classList.remove('opacity-100', 'translate-y-0');
-            }, 3400);
         }
 
         function animateCanvas() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             const t = currentCanvasTheme;
 
-            if (t === 'july4') {
-                if (Math.random() < 0.05) {
-                    const colors = ['#ef4444', '#ffffff', '#38bdf8', '#facc15', '#a855f7'];
-                    const col = colors[Math.floor(Math.random() * colors.length)];
-                    const fx = 100 + Math.random() * (canvas.width - 200);
-                    const fy = 70 + Math.random() * (canvas.height * 0.42);
-                    for (let s = 0; s < 28; s++) {
-                        const ang = (Math.PI * 2 * s) / 28, spd = 1.2 + Math.random() * 2.8;
-                        fireworks.push({ x: fx, y: fy, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, alpha: 1, color: col });
+            if (particlesEnabled) {
+                if (t === 'july4') {
+                    if (Math.random() < 0.025) {
+                        const colors = ['#ef4444', '#ffffff', '#38bdf8', '#facc15', '#a855f7'];
+                        const col = colors[Math.floor(Math.random() * colors.length)];
+                        const fx = 100 + Math.random() * (canvas.width - 200);
+                        const fy = 70 + Math.random() * (canvas.height * 0.42);
+                        for (let s = 0; s < 28; s++) {
+                            const ang = (Math.PI * 2 * s) / 28, spd = 0.6 + Math.random() * 1.4;
+                            fireworks.push({ x: fx, y: fy, vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd, alpha: 1, color: col });
+                        }
                     }
+                    for (let f = fireworks.length - 1; f >= 0; f--) {
+                        const fw = fireworks[f];
+                        fw.x += fw.vx; fw.y += fw.vy; fw.vy += 0.02; fw.alpha -= 0.0085;
+                        if (fw.alpha <= 0) { fireworks.splice(f, 1); continue; }
+                        ctx.globalAlpha = fw.alpha; ctx.fillStyle = fw.color;
+                        ctx.beginPath(); ctx.arc(fw.x, fw.y, 2.3, 0, Math.PI * 2); ctx.fill();
+                    }
+                    ctx.globalAlpha = 1;
+                } else {
+                    particles.forEach((p, idx) => {
+                        p.x += p.vx + Math.sin((p.y + idx) * 0.015) * 0.2;
+                        p.y += p.vy;
+                        p.angle = (p.angle || 0) + (p.spin || 0.01);
+                        if (p.y > canvas.height + 20 || p.y < -25) Object.assign(p, makeParticle(t, false, idx));
+                        ctx.save(); ctx.translate(p.x, p.y);
+                        if (t === 'autumn' || t === 'spring' || t === 'easter') {
+                            ctx.rotate(p.angle); ctx.fillStyle = p.color;
+                            ctx.beginPath(); ctx.ellipse(0, 0, p.r * 1.5, p.r * 0.85, 0, 0, Math.PI * 2); ctx.fill();
+                        } else if (t === 'summer') {
+                            ctx.fillStyle = 'rgba(254, 240, 138, 0.45)';
+                            ctx.beginPath(); ctx.arc(0, 0, p.r * 0.85, 0, Math.PI * 2); ctx.fill();
+                        } else {
+                            ctx.fillStyle = p.color || 'rgba(255, 255, 255, 0.82)';
+                            ctx.beginPath(); ctx.arc(0, 0, p.r, 0, Math.PI * 2); ctx.fill();
+                        }
+                        ctx.restore();
+                    });
                 }
-                for (let f = fireworks.length - 1; f >= 0; f--) {
-                    const fw = fireworks[f];
-                    fw.x += fw.vx; fw.y += fw.vy; fw.vy += 0.04; fw.alpha -= 0.017;
-                    if (fw.alpha <= 0) { fireworks.splice(f, 1); continue; }
-                    ctx.globalAlpha = fw.alpha; ctx.fillStyle = fw.color;
-                    ctx.beginPath(); ctx.arc(fw.x, fw.y, 2.3, 0, Math.PI * 2); ctx.fill();
+
+                // Render Task Completion Celebration Bursts (50% speed)
+                for (let b = completionBursts.length - 1; b >= 0; b--) {
+                    const bp = completionBursts[b];
+                    bp.x += bp.vx; bp.y += bp.vy; bp.vy += 0.06; bp.alpha -= 0.011;
+                    if (bp.alpha <= 0) { completionBursts.splice(b, 1); continue; }
+                    ctx.globalAlpha = bp.alpha;
+                    ctx.fillStyle = bp.color;
+                    ctx.beginPath();
+                    ctx.arc(bp.x, bp.y, bp.r, 0, Math.PI * 2);
+                    ctx.fill();
                 }
                 ctx.globalAlpha = 1;
-            } else {
-                particles.forEach((p, idx) => {
-                    p.x += p.vx + Math.sin((p.y + idx) * 0.015) * 0.4;
-                    p.y += p.vy;
-                    p.angle = (p.angle || 0) + (p.spin || 0.02);
-                    if (p.y > canvas.height + 20 || p.y < -25) Object.assign(p, makeParticle(t, false, idx));
-                    ctx.save(); ctx.translate(p.x, p.y);
-                    if (t === 'autumn' || t === 'spring' || t === 'easter') {
-                        ctx.rotate(p.angle); ctx.fillStyle = p.color;
-                        ctx.beginPath(); ctx.ellipse(0, 0, p.r * 1.5, p.r * 0.85, 0, 0, Math.PI * 2); ctx.fill();
-                    } else if (t === 'summer') {
-                        ctx.fillStyle = 'rgba(254, 240, 138, 0.45)';
-                        ctx.beginPath(); ctx.arc(0, 0, p.r * 0.85, 0, Math.PI * 2); ctx.fill();
-                    } else {
-                        ctx.fillStyle = p.color || 'rgba(255, 255, 255, 0.82)';
-                        ctx.beginPath(); ctx.arc(0, 0, p.r, 0, Math.PI * 2); ctx.fill();
-                    }
-                    ctx.restore();
-                });
             }
-
-            // Render Task Completion Celebration Bursts
-            for (let b = completionBursts.length - 1; b >= 0; b--) {
-                const bp = completionBursts[b];
-                bp.x += bp.vx; bp.y += bp.vy; bp.vy += 0.12; bp.alpha -= 0.022;
-                if (bp.alpha <= 0) { completionBursts.splice(b, 1); continue; }
-                ctx.globalAlpha = bp.alpha;
-                ctx.fillStyle = bp.color;
-                ctx.beginPath();
-                ctx.arc(bp.x, bp.y, bp.r, 0, Math.PI * 2);
-                ctx.fill();
-            }
-            ctx.globalAlpha = 1;
 
             requestAnimationFrame(animateCanvas);
         }
 
-        // --- COLLAPSIBLE TRAY, OPACITY SLIDER & SETTINGS OVERLAY ---
+        // --- COLLAPSIBLE TRAY, OPACITY, BACKGROUND FADE & PARTICLES CONTROLS ---
         let trayOpen = localStorage.getItem('hw_tray_open') === 'true';
 
         function applyTrayState() {
@@ -1367,13 +1396,12 @@
             applyTrayState();
         }
 
-      function setOpacityPreviewMode(isSliding) {
+        function setOpacityPreviewMode(isSliding) {
             const page = document.getElementById('settings-page');
             if (!page) return;
             const innerCard = page.firstElementChild;
             const sliderBox = document.getElementById('opacity-slider-section');
 
-            // Hide backdrop blur & dark overlay while dragging slider
             page.classList.toggle('bg-slate-950/55', !isSliding);
             page.classList.toggle('backdrop-blur-md', !isSliding);
 
@@ -1390,6 +1418,42 @@
             }
         }
 
+        function updateBgDim(val, syncAfter = false) {
+            bgDim = Math.max(0, Math.min(95, parseInt(val, 10) || 0));
+            const dimmer = document.getElementById('theme-dimmer');
+            if (dimmer) dimmer.style.opacity = (bgDim / 100).toFixed(2);
+            const lbl = document.getElementById('bg-dim-value-label');
+            if (lbl) lbl.textContent = `${bgDim}%`;
+            const slider = document.getElementById('bg-dim-slider');
+            if (slider && parseInt(slider.value, 10) !== bgDim) slider.value = bgDim;
+            localStorage.setItem('hw_bg_dim', String(bgDim));
+            if (syncAfter) pushRemoteState();
+        }
+
+        function updateParticlesUI() {
+            const btn = document.getElementById('particles-toggle-btn');
+            if (!btn) return;
+            if (particlesEnabled) {
+                btn.textContent = '✨ Particles: ON';
+                btn.className = 'px-3.5 py-1.5 rounded-xl text-xs font-bold border transition bg-emerald-600/30 border-emerald-400/50 text-emerald-200';
+            } else {
+                btn.textContent = '🚫 Particles: OFF';
+                btn.className = 'px-3.5 py-1.5 rounded-xl text-xs font-bold border transition bg-slate-800 border-slate-600 text-slate-400';
+            }
+        }
+
+        function toggleParticles() {
+            particlesEnabled = !particlesEnabled;
+            if (!particlesEnabled) {
+                completionBursts = [];
+                fireworks = [];
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+            localStorage.setItem('hw_particles_enabled', particlesEnabled ? 'true' : 'false');
+            updateParticlesUI();
+            pushRemoteState();
+        }
+
         function updateCardOpacity(val, syncAfter = false) {
             cardOpacity = parseInt(val, 10) || 68;
             document.documentElement.style.setProperty('--card-opacity', (cardOpacity / 100).toFixed(2));
@@ -1398,6 +1462,8 @@
             const slider = document.getElementById('card-opacity-slider');
             if (slider && parseInt(slider.value, 10) !== cardOpacity) slider.value = cardOpacity;
             localStorage.setItem('hw_card_opacity', String(cardOpacity));
+            updateBgDim(bgDim, false);
+            updateParticlesUI();
             if (syncAfter) pushRemoteState();
         }
 

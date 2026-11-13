@@ -17,7 +17,8 @@
     "Foundations%20of%20Ethics__readingjohndunsscotuswillandmorality__2026-11-12": true,
     "Christian%20Moral%20Principles__readingrespectmarriageiicontraceptionpurityofheart__2026-11-12": true,
     "Trinity%20and%20Christology__journalforclass35__2026-11-12": true,
-    "Elementary%20Spanish%20II__vhlassignmentnov1220261112__2026-11-12": true
+    "Elementary%20Spanish%20II__vhlassignmentnov1220261112__2026-11-12": true,
+    "Philosophy%20of%20God__daviesconceptsofgodpdf__2026-11-12": true
   },
   "overrides": {
     "Philosophy%20of%20God__weektwelvewednesday1111conceptsofgoddiscussionquestion10__2026-11-11": {
@@ -89,6 +90,24 @@
       "timeMode": "default",
       "customTime": "22:00",
       "skipExamsEssays": true
+    },
+    "SPN 102 Fall 2026: SPN 102A": {
+      "shiftDays": 0,
+      "timeMode": "force",
+      "customTime": "22:00",
+      "skipExamsEssays": false
+    },
+    "PHIL 212 Ethics": {
+      "shiftDays": -1,
+      "timeMode": "force",
+      "customTime": "22:00",
+      "skipExamsEssays": true
+    },
+    "Christian Moral Principles (THE 115)": {
+      "shiftDays": 0,
+      "timeMode": "default",
+      "customTime": "22:00",
+      "skipExamsEssays": true
     }
   },
   "courseColors": {
@@ -97,7 +116,10 @@
     "Philosophy of God": "emerald",
     "Christian Moral Principles": "rose",
     "Foundations of Ethics": "emerald",
-    "CAT 120": "amber"
+    "CAT 120": "amber",
+    "SPN 102 Fall 2026: SPN 102A": "indigo",
+    "PHIL 212 Ethics": "rose",
+    "Christian Moral Principles (THE 115)": "cyan"
   },
   "cardOpacity": 56,
   "globalDefaultTime": "00:00",

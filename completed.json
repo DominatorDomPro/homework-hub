@@ -111,7 +111,7 @@
     "Christian Moral Principles (THE 115)": {
       "shiftDays": 0,
       "timeMode": "default",
-      "customTime": "22:00",
+      "customTime": "10:00",
       "skipExamsEssays": true
     }
   },
@@ -122,9 +122,9 @@
     "Christian Moral Principles": "rose",
     "Foundations of Ethics": "emerald",
     "CAT 120": "amber",
-    "SPN 102 Fall 2026: SPN 102A": "indigo",
-    "PHIL 212 Ethics": "rose",
-    "Christian Moral Principles (THE 115)": "cyan"
+    "SPN 102 Fall 2026: SPN 102A": "orange",
+    "PHIL 212 Ethics": "emerald",
+    "Christian Moral Principles (THE 115)": "rose"
   },
   "cardOpacity": 56,
   "globalDefaultTime": "00:00",

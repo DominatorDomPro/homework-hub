@@ -30,13 +30,14 @@ else:
 
 # You can mix regular course URLs, Canvas PDF links, and local .pdf filenames here:
 COURSE_URLS = [
-    "https://m3a.vhlcentral.com/courses/1582211/sections/2052076",          # Spanish/Textbook portal
-    "https://franciscan.instructure.com/courses/14917/modules",             # POG
-    "https://franciscan.instructure.com/courses/16213",                     # T&C Canvas Course API (pulls exact Journal due dates!)
+    "https://m3a.vhlcentral.com/courses/1582211/sections/2052076",          # Spanish VHL Vistas portal
+    "https://franciscan.instructure.com/courses/14917/modules",             # Philosophy of God Modules
+    "https://franciscan.instructure.com/courses/16213",                     # Trinity and Christology API
     "https://franciscan.instructure.com/courses/16213/files/1877796?module_item_id=900256", # T&C Word Syllabus
-    "UpdatedReadingSchedule.pdf",                                           # FOE Syllabus
-    "https://franciscan.instructure.com/courses/15459/files/1832962?module_item_id=889082", # CMP (comma fixed)
-    "https://franciscan.instructure.com/courses/15604/files/1832338?module_item_id=888658", # Spanish Canvas (comma fixed)
+    "UpdatedReadingSchedule.pdf",                                           # Foundations of Ethics (PHIL 212) Syllabus
+    "https://franciscan.instructure.com/courses/15459/files/1832962?module_item_id=889082", # Christian Moral Principles Syllabus PDF
+    "https://franciscan.instructure.com/courses/15459",                     # Christian Moral Principles Course Page (for Exams/Quizzes)
+    "https://franciscan.instructure.com/courses/15604/files/1832338?module_item_id=888658", # Spanish Canvas Syllabus PDF
     "https://franciscan.instructure.com",                                   # Canvas Dashboard
 ]
 DISCORD_WEBHOOK_URL = ""
@@ -106,20 +107,28 @@ def extract_docx_bytes(file_bytes: bytes) -> str:
             if row_text:
                 full_text.append(" | ".join(row_text))
     return "\n".join(full_text)
-
-def fetch_canvas_course_via_api(base_url: str, course_id: str, context) -> str:
-    """Uses your logged-in session to pull 100% of modules & assignments directly from Canvas's internal API."""
+def fetch_canvas_course_via_api(base_url: str, course_id: str, context) -> tuple[str, int]:
+    """Uses your logged-in session to pull modules, syllabus body, pages, & assignments from Canvas's API."""
     output = []
     
-    # 1. Get Course Name
+    # 1. Get Course Name & Syllabus Body (if the professor posted a reading schedule on the Syllabus tab)
     course_name = f"Course {course_id}"
-    c_resp = context.request.get(f"{base_url}/api/v1/courses/{course_id}")
+    syllabus_text = ""
+    c_resp = context.request.get(f"{base_url}/api/v1/courses/{course_id}?include[]=syllabus_body")
     if c_resp.ok:
         c_data = json.loads(c_resp.text().removeprefix("while(1);"))
         course_name = c_data.get("name", course_name)
-    output.append(f"=== CANVAS COURSE: {course_name} (ID: {course_id}) ===")
+        raw_syllabus = c_data.get("syllabus_body") or ""
+        if raw_syllabus:
+            s_soup = BeautifulSoup(raw_syllabus, "html.parser")
+            syllabus_text = s_soup.get_text(separator="\n", strip=True)
 
-    # 2. Paginate through ALL Modules & Module Items (up to 200 modules)
+    output.append(f"=== CANVAS COURSE: {course_name} (ID: {course_id}) ===")
+    if syllabus_text:
+        print(f"  -> Extracted {len(syllabus_text)} characters from Canvas Syllabus tab for '{course_name}'!")
+        output.append(f"\n=== COURSE SYLLABUS TAB FOR {course_name} ===\n{syllabus_text[:30000]}")
+
+    # 2. Paginate through ALL Modules & Module Items
     modules = []
     for page_num in range(1, 4):
         m_url = f"{base_url}/api/v1/courses/{course_id}/modules?include[]=items&per_page=100&page={page_num}"
@@ -137,7 +146,13 @@ def fetch_canvas_course_via_api(base_url: str, course_id: str, context) -> str:
     for idx, mod in enumerate(modules, 1):
         mod_name = mod.get("name", "Unnamed Module")
         output.append(f"\n[MODULE #{idx} TITLE / HEADER]: {mod_name}")
-        for item in mod.get("items", []):
+        items = mod.get("items", [])
+        # If Canvas omitted items inline, fetch this module's items directly
+        if not items and mod.get("id"):
+            it_resp = context.request.get(f"{base_url}/api/v1/courses/{course_id}/modules/{mod['id']}/items?per_page=100")
+            if it_resp.ok:
+                items = json.loads(it_resp.text().removeprefix("while(1);"))
+        for item in items:
             item_title = item.get("title", "")
             item_type = item.get("type", "")
             due_at = item.get("content_details", {}).get("due_at", "")
@@ -153,7 +168,7 @@ def fetch_canvas_course_via_api(base_url: str, course_id: str, context) -> str:
             for a in assigns:
                 output.append(f"- [ASSIGNMENT]: {a.get('name')} | Due: {a.get('due_at')} | Points: {a.get('points_possible')}")
 
-    return "\n".join(output)
+    return "\n".join(output), len(modules)
 
 
 def fetch_clean_text(url: str, context) -> str:
@@ -163,7 +178,9 @@ def fetch_clean_text(url: str, context) -> str:
             print(f"Reading local syllabus PDF: {url} ...")
             try:
                 with open(url, "rb") as f:
-                    return extract_pdf_bytes(f.read())
+                    text = extract_pdf_bytes(f.read())
+                    print(f"  -> Extracted {len(text)} characters from local PDF '{url}'!")
+                    return f"=== SYLLABUS SCHEDULE PDF: Foundations of Ethics (PHIL 212) ===\n{text}"
             except Exception as e:
                 print(f"Warning: Could not read local PDF {url} ({e})")
                 return ""
@@ -177,6 +194,16 @@ def fetch_clean_text(url: str, context) -> str:
                 return ""
 
     print(f"Checking: {url} ...")
+
+    course_hint = ""
+    if "14917" in url:
+        course_hint = " (Philosophy of God)"
+    elif "16213" in url:
+        course_hint = " (Trinity and Christology)"
+    elif "15459" in url:
+        course_hint = " (Christian Moral Principles / THE-115)"
+    elif "15604" in url or "vhlcentral" in url:
+        course_hint = " (Elementary Spanish II / SPN 102)"
 
     # 2. Canvas file URLs or direct document links
     canvas_file_match = re.search(r"(https?://[^/]+/(?:courses/\d+/)?files/\d+)", url)
@@ -192,36 +219,49 @@ def fetch_clean_text(url: str, context) -> str:
                 if raw_bytes.startswith(b"PK\x03\x04"):
                     print("  -> Detected Word document (.docx). Extracting text...")
                     doc_text = extract_docx_bytes(raw_bytes)
-                    print(f"  -> Extracted {len(doc_text)} characters from Word document!")
-                    return doc_text
+                    print(f"  -> Extracted {len(doc_text)} characters from Word document{course_hint}!")
+                    return f"=== COURSE SYLLABUS DOCUMENT{course_hint} ===\n{doc_text}"
                 elif raw_bytes.startswith(b"%PDF"):
                     print("  -> Detected PDF document. Extracting text...")
                     pdf_text = extract_pdf_bytes(raw_bytes)
-                    print(f"  -> Extracted {len(pdf_text)} characters from PDF!")
-                    return pdf_text
+                    print(f"  -> Extracted {len(pdf_text)} characters from PDF{course_hint}!")
+                    return f"=== COURSE SYLLABUS PDF{course_hint} ===\n{pdf_text}"
                 else:
                     try:
-                        return extract_pdf_bytes(raw_bytes)
+                        return f"=== COURSE SYLLABUS PDF{course_hint} ===\n{extract_pdf_bytes(raw_bytes)}"
                     except Exception:
-                        return extract_docx_bytes(raw_bytes)
+                        return f"=== COURSE SYLLABUS DOCUMENT{course_hint} ===\n{extract_docx_bytes(raw_bytes)}"
         except Exception as e:
             print(f"  -> Document download failed ({e}), falling back to browser view...")
 
-    # 3. Direct Canvas Course API (fetches 100% of modules without pagination/scrolling limits!)
+    # 3. Direct Canvas Course API (also falls through to browser scrape if 0 modules were returned)
+    api_text = ""
     canvas_course_match = re.match(r"^(https?://[^/]+instructure\.com)/courses/(\d+)(?:/modules|/assignments|/?)?$", url.split("?")[0])
     if canvas_course_match:
         try:
-            api_text = fetch_canvas_course_via_api(canvas_course_match.group(1), canvas_course_match.group(2), context)
-            if "[MODULE #" in api_text or "[ASSIGNMENT]" in api_text:
+            api_text, mod_count = fetch_canvas_course_via_api(canvas_course_match.group(1), canvas_course_match.group(2), context)
+            if mod_count > 0:
                 return api_text
+            print(f"  -> 0 API modules for course {canvas_course_match.group(2)}{course_hint}; also scraping browser page...")
         except Exception as e:
             print(f"  -> Canvas API check failed ({e}), falling back to browser scrape...")
 
-    # 4. Standard webpage and module scraping (for VHL Central, Canvas Dashboard, etc.)
+    # 4. Standard webpage and module scraping (for VHL Central, Canvas Modules/Home, Dashboard)
+    is_vhl = "vhlcentral.com" in url.lower()
     page = context.new_page()
     try:
-        page.goto(url, wait_until="domcontentloaded", timeout=20000)
-        page.wait_for_timeout(3000)
+        if is_vhl:
+            try:
+                page.goto(url, wait_until="networkidle", timeout=30000)
+            except Exception:
+                page.goto(url, wait_until="domcontentloaded", timeout=25000)
+            page.wait_for_timeout(5000)
+        else:
+            try:
+                page.goto(url, wait_until="networkidle", timeout=25000)
+            except Exception:
+                page.goto(url, wait_until="domcontentloaded", timeout=20000)
+            page.wait_for_timeout(3500)
 
         print("  -> Scrolling down through page...")
         scroll_height = page.evaluate("document.body.scrollHeight")
@@ -232,10 +272,12 @@ def fetch_clean_text(url: str, context) -> str:
             page.wait_for_timeout(400)
             scroll_height = page.evaluate("document.body.scrollHeight")
 
-        page.wait_for_timeout(1000)
+        page.wait_for_timeout(1500)
+        final_url = page.url.lower()
         html = page.content()
     except Exception as e:
         print(f"Warning: Issue loading {url} ({e})")
+        final_url = ""
         html = page.content() if page else ""
     finally:
         page.close()
@@ -243,37 +285,54 @@ def fetch_clean_text(url: str, context) -> str:
     soup = BeautifulSoup(html, "html.parser")
     for tag in soup(["script", "style", "svg", "noscript", "footer", "nav"]):
         tag.decompose()
-    return soup.get_text(separator="\n", strip=True)
+    clean_text = soup.get_text(separator="\n", strip=True)
+
+    if is_vhl:
+        if "sso.vhlcentral.com" in final_url or "login" in final_url or "sign_in" in final_url or len(clean_text) < 300:
+            print("  -> ⚠️ WARNING: VHL Central session expired! Run `python homework_bot.py --login` to refresh auth.json.")
+        else:
+            print(f"  -> Extracted {len(clean_text)} characters from VHL Central!")
+        return f"=== VHL CENTRAL ONLINE ASSIGNMENTS (Elementary Spanish II - Vistas) ===\n{clean_text}"
+
+    print(f"  -> Extracted {len(clean_text)} characters from webpage{course_hint}!")
+    if api_text:
+        return f"{api_text}\n\n=== BROWSER PAGE SCRAPE{course_hint} ===\n{clean_text}"
+    return f"=== BROWSER PAGE SCRAPE{course_hint} ===\n{clean_text}"
 
 
 def parse_homework_with_ai(combined_text: str) -> HomeworkList | None:
     client = genai.Client(
         api_key=GEMINI_API_KEY,
-        http_options={"timeout": 60000}  # 60-second timeout per attempt
+        http_options={"timeout": 60000}
     )
     today_str = datetime.now().strftime("%A, %B %d, %Y")
-    
-    trimmed_text = combined_text[:150000]
+
+    trimmed_text = combined_text[:350000]
     print(f"Payload size: {len(trimmed_text)} characters. Sending request to Gemini...")
 
     prompt = f"""
     Today's date is {today_str}.
-    Below is text scraped from student course portals, Canvas API module/assignment lists, and course syllabi (PDF and Word docs).
+    Below is text scraped from 5 college courses across Canvas API module/assignment lists, VHL Central, and course syllabi (PDF and Word docs).
     
     CRITICAL INSTRUCTIONS:
-    1. Look through every portal page, Canvas API assignment list, module list, and syllabus schedule.
-    2. MODULE TITLES AS HOMEWORK: On some Canvas courses (like Course 14917), the professor lists the homework, readings, or class assignments DIRECTLY AS THE `[MODULE #... TITLE / HEADER]` itself (or its sub-items). Look through the sequence of modules to find the ones corresponding to TODAY ({today_str}) or the NEXT 14 DAYS and include them!
-    3. MERGE SYLLABUS & CANVAS DATES: If a syllabus lists an item without a date (e.g. 'Journal for Class 35', 'Journal for Class 36') and the Canvas Assignments list has the exact due date for that item, use the exact Canvas due date! Do NOT output duplicate rows for the same assignment, and NEVER guess today's date for future journals.
-    4. ACTUAL DUE DATES ONLY: If a syllabus row on an earlier date mentions a future paper or exam (e.g. 'Interpretive Philosophical Essay 2 due 11/19'), you MUST set its due_date to the actual submission date (2026-11-19), NOT the earlier reminder date!
-    5. STRICT DATE FORMAT: Always format `due_date` starting with `YYYY-MM-DD` followed by the time if known (for example: `2026-11-19, 08:00 AM` or `2026-11-15, 11:59 PM` or `2026-11-17`).
-    6. Ignore readings or assignments whose due dates have already passed before {today_str}, or items marked 'Submitted'/'Completed'.
-    7. Sort the final list chronologically by due date.
+    1. EXTRACT ASSIGNMENTS & DAILY READINGS FOR ALL 5 COURSES (DO NOT SKIP ANY COURSE):
+       You MUST include upcoming items for TODAY ({today_str}) and the NEXT 14 DAYS from ALL FIVE of these courses:
+       - **"Philosophy of God"** (Course 14917): The professor puts class readings and homework topics directly inside the `[MODULE #... TITLE / HEADER]` titles, module sub-items, or course page scrape. Extract the upcoming modules/readings for today and the next 14 days! (If a module header has a date or class number corresponding to the current/upcoming two weeks, include it as an assignment!)
+       - **"Christian Moral Principles"** (Course 15459 / THE-115): Look inside `=== COURSE SYLLABUS PDF (Christian Moral Principles / THE-115) ===` AND the course schedule. You MUST extract every daily class reading assignment scheduled for today and the next 14 days (set `due_date` to the class date the reading is assigned for!), in addition to any online Canvas assessments/exams!
+       - **"Foundations of Ethics"** (PHIL 212): Extract all daily readings (e.g., John Duns Scotus) and essays scheduled for today and the next 14 days from `UpdatedReadingSchedule.pdf`.
+       - **"Trinity and Christology"** (Course 16213): Merge the Word syllabus reading details with the exact Canvas `Journal for Class #` due dates.
+       - **"Elementary Spanish II"** (Course 15604 / VHL): Include BOTH the online VHL Central Vistas activities AND the in-class syllabus assignments (`Escritura`, `Pruebas`, etc.).
+    2. CLASS READINGS ARE REQUIRED HOMEWORK: Even if a syllabus reading does not have an online submission box on Canvas, you MUST include it as a row in `assignments` with its class date as `due_date`!
+    3. ACTUAL DUE DATES ONLY: If a syllabus row on an earlier date mentions a future paper or exam (e.g. 'Essay 2 due 11/19'), set its `due_date` to the actual submission date (2026-11-19), NOT the earlier reminder date!
+    4. STRICT DATE FORMAT: Always format `due_date` starting with `YYYY-MM-DD` followed by the time if known (for example: `2026-11-19, 08:00 AM` or `2026-11-15, 11:59 PM` or `2026-11-17`).
+    5. Ignore readings or assignments whose dates have already passed before {today_str}, or items marked 'Submitted'/'Completed'.
+    6. Sort the final list chronologically by due date.
     
     Return ONLY a valid JSON object matching this structure:
     {{
       "assignments": [
         {{
-          "course": "Course Name",
+          "course": "Exact Course Name",
           "title": "Assignment, Reading, or Module Title",
           "due_date": "YYYY-MM-DD, HH:MM AM/PM (or YYYY-MM-DD if no time)",
           "status_or_details": "Pages to read, module sub-items, or syllabus notes"
@@ -281,7 +340,7 @@ def parse_homework_with_ai(combined_text: str) -> HomeworkList | None:
       ]
     }}
 
-    Content:
+    SCRAPED CONTENT:
     {trimmed_text}
     """
     
@@ -292,7 +351,6 @@ def parse_homework_with_ai(combined_text: str) -> HomeworkList | None:
         "gemini-3.5-flash",
     ]
     
-    # Try up to 2 full passes in case of temporary 503 spikes
     for attempt_round in range(1, 3):
         for model_name in models_to_try:
             try:
@@ -323,7 +381,6 @@ def parse_homework_with_ai(combined_text: str) -> HomeworkList | None:
             
     print("\nAll models were temporarily unavailable due to high demand.")
     return None
-
 
 
 # =====================================================================
@@ -370,10 +427,23 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(storage_state=AUTH_FILE)
-        
+
+        # Warm up Canvas session first (constructed via concatenation so copy-paste never adds markdown brackets)
+        try:
+            print("Warming up Canvas session...")
+            warmup_page = context.new_page()
+            canvas_base = "https://" + "franciscan.instructure.com"
+            warmup_page.goto(canvas_base, wait_until="domcontentloaded", timeout=20000)
+            warmup_page.wait_for_timeout(3000)
+            warmup_page.close()
+        except Exception as e:
+            print(f"Canvas warmup note: {e}")
+
         for url in COURSE_URLS:
             page_text = fetch_clean_text(url, context)
-            combined_text += f"\n\n--- SOURCE: {url} ---\n{page_text[:100000]}"
+            # Put syllabus PDFs and specific course pages at full length, cap generic dashboard at 20k
+            limit = 20000 if url.rstrip("/").endswith("instructure.com") else 65000
+            combined_text += f"\n\n--- SOURCE: {url} ---\n{page_text[:limit]}"
             
         browser.close()
 
@@ -395,4 +465,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

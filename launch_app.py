@@ -119,8 +119,35 @@ def parse_time_to_24h(date_str: str, details_str: str = "") -> str:
     return ""
 
 
+def normalize_course_name(raw_course: str, title: str = "", details: str = "") -> str:
+    """Locks any Canvas/VHL course name variation to its single canonical name."""
+    c = raw_course.lower().strip()
+    combined = f"{c} {title.lower()} {details.lower()}"
+
+    if any(k in c for k in ("spn", "spanish", "vhl", "1582211", "15604")):
+        return "Elementary Spanish II"
+    if any(k in c for k in ("14917", "philosophy of god", "phil of god")):
+        return "Philosophy of God"
+    if any(k in c for k in ("16213", "trinity", "christology")):
+        return "Trinity and Christology"
+    if any(k in c for k in ("phil 212", "phil-212", "foundations of ethics")) or c == "ethics":
+        return "Foundations of Ethics"
+    if any(k in c for k in ("15459", "moral principles", "christian moral", "the-115", "the 115")):
+        return "Christian Moral Principles"
+
+    # Secondary check if the course column just said "Canvas" or "Assignment"
+    if "vhl" in combined or "lección" in combined or "estructura" in combined:
+        return "Elementary Spanish II"
+    if "scotus" in combined or "ratzinger" in combined:
+        return "Foundations of Ethics"
+    if "shorter summa" in combined or "journal for class" in combined:
+        return "Trinity and Christology"
+
+    return raw_course.strip()
+
+
 def parse_markdown_file(filepath: str) -> list:
-    """Reads homework_list.md and dynamically locates the date column even if Title or Details contain '|' pipes."""
+    """Reads homework_list.md and locks course names + locates the date column."""
     if not os.path.exists(filepath):
         print(f"Error: '{filepath}' not found! Run `python homework_bot.py` first.")
         return []
@@ -142,9 +169,8 @@ def parse_markdown_file(filepath: str) -> list:
         if cells[0].lower() == "course" or ":---" in cells[0] or "---" in cells[0]:
             continue
 
-        course = cells[0].replace("**", "").strip()
+        raw_course = cells[0].replace("**", "").strip()
 
-        # Dynamically find which cell is the Due Date column (handles '|' pipes in both Title and Details)
         date_idx = None
         for i in range(2, len(cells) - 1):
             if re.match(r"^\d{4}-\d{2}-\d{2}\b", cells[i]):
@@ -158,12 +184,13 @@ def parse_markdown_file(filepath: str) -> list:
                     break
 
         if date_idx is None:
-            date_idx = 2  # Standard 4-column table fallback
+            date_idx = 2
 
         title = " - ".join(cells[1:date_idx]).replace("**", "").strip()
         due_date = cells[date_idx].strip()
         details = " - ".join(cells[date_idx + 1:]).strip()
 
+        course = normalize_course_name(raw_course, title, details)
         raw_iso = parse_date_to_iso(due_date, details, title)
         raw_time = parse_time_to_24h(due_date, details)
 
@@ -227,7 +254,7 @@ def upload_to_github(filename: str, file_content: str):
         print(f"GitHub Upload Failed: {e}")
 
 
-HTML_TEMPLATE = """<!DOCTYPE html>
+HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
@@ -681,7 +708,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     <button onclick="saveSyncToken()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold">Save Token & Sync</button>
                 </div>
             </div>
-        </div>
+
+            <!-- Section 5: 1-Click New Semester Reset -->
+            <div class="bg-rose-950/35 border border-rose-500/30 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                    <div class="text-sm font-bold text-rose-200">🎓 Start a New Semester (Clean Slate)</div>
+                    <div class="text-xs text-slate-300">Clears old completed tasks, locked titles, custom tasks, and course rules/colors across cloud & local storage while keeping your theme, opacity, and GitHub token.</div>
+                </div>
+                <button id="semester-reset-btn" type="button" onclick="resetForNewSemester()"
+                    class="shrink-0 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs sm:text-sm font-bold shadow transition">
+                    🗑️ New Semester Reset
+                </button>
+            </div>
     </div>
 
     <!-- Modal 1: Add Custom Task -->
@@ -1819,11 +1857,70 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
         }
 
+       let lockedTitles = JSON.parse(localStorage.getItem('hw_locked_titles') || '{}');
+
+        function normalizeCourseNameJS(courseName) {
+         const c = (courseName || '').toLowerCase().trim();
+         if (c.includes('spn') || c.includes('spanish') || c.includes('vhl') || c.includes('15604')) return 'Elementary Spanish II';
+         if (c.includes('14917') || c.includes('philosophy of god')) return 'Philosophy of God';
+         if (c.includes('16213') || c.includes('trinity') || c.includes('christology')) return 'Trinity and Christology';
+         if (c.includes('phil 212') || c.includes('phil-212') || c.includes('foundations of ethics') || c === 'ethics') return 'Foundations of Ethics';
+         if (c.includes('15459') || c.includes('moral principles') || c.includes('christian moral') || c.includes('the-115')) return 'Christian Moral Principles';
+         return courseName;
+     }
+
+        function extractTaskTokens(str) {
+            const s = (str || '').toLowerCase();
+            const nums = (s.match(/\\d+[a-z]?/g) || []).join('_');
+            const words = (s.match(/[a-z]{4,}/g) || []).filter(w => !['reading', 'class', 'assignment', 'chapter', 'module', 'week'].includes(w));
+            return { nums, words };
+        }
+
+        function coursesMatchFuzzy(courseA, courseB) {
+            const a = (courseA || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const b = (courseB || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (a === b || a.includes(b) || b.includes(a)) return true;
+            const wordsA = (courseA || '').toLowerCase().match(/[a-z]{4,}/g) || [];
+            const wordsB = (courseB || '').toLowerCase().match(/[a-z]{4,}/g) || [];
+            return wordsA.some(w => wordsB.includes(w));
+        }
+
         function getBaseTaskId(item) {
             if (item._id) return item._id;
-            const cleanTitle = (item.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
             const origDate = item._orig_iso_date || item.iso_date || '';
-            return encodeURIComponent(item.course + '__' + cleanTitle + '__' + origDate);
+            const cleanTitle = (item.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const exactId = encodeURIComponent(item.course + '__' + cleanTitle + '__' + origDate);
+
+            if (completedIds[exactId] || taskOverrides[exactId] || lockedTitles[exactId]) {
+                return exactId;
+            }
+
+            // Fuzzy-match against already saved tasks on the same date & course
+            const knownIds = new Set([
+                ...Object.keys(completedIds),
+                ...Object.keys(taskOverrides),
+                ...Object.keys(lockedTitles)
+            ]);
+            const curTokens = extractTaskTokens(item.title);
+
+            for (const savedId of knownIds) {
+                const decoded = decodeURIComponent(savedId);
+                const parts = decoded.split('__');
+                if (parts.length !== 3) continue;
+                const [savedCourse, savedCleanTitle, savedDate] = parts;
+
+                if (savedDate === origDate && coursesMatchFuzzy(item.course, savedCourse)) {
+                    const savedNums = (savedCleanTitle.match(/\\d+[a-z]?/g) || []).join('_');
+                    if (curTokens.nums && savedNums && (curTokens.nums === savedNums || savedNums.includes(curTokens.nums) || curTokens.nums.includes(savedNums))) {
+                        return savedId;
+                    }
+                    if (curTokens.words.some(w => savedCleanTitle.includes(w))) {
+                        return savedId;
+                    }
+                }
+            }
+
+            return exactId;
         }
 
         function formatTime12h(time24) {
@@ -1844,12 +1941,30 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
 
         function getAllAssignments() {
+            let titlesUpdated = false;
+            const knownCourses = Object.keys(courseRules).concat(Object.keys(courseColors));
+
             const merged = [...BOT_ASSIGNMENTS, ...customTasks].map(raw => {
                 const copy = { ...raw };
+
+                // If a course already has saved rules/colors under a slightly cleaner name, snap to that name
+                const matchedCourse = knownCourses.find(kc => coursesMatchFuzzy(copy.course, kc));
+                if (matchedCourse) {
+                    copy.course = matchedCourse;
+                }
+
                 copy._orig_iso_date = raw._orig_iso_date || raw.iso_date;
                 copy._orig_time_24 = raw._orig_time_24 !== undefined ? raw._orig_time_24 : (raw.time_24 || '');
                 const id = getBaseTaskId(copy);
                 copy._id = id;
+
+                // Lock the display title once seen so future scrapes don't rename it
+                if (lockedTitles[id]) {
+                    copy.title = lockedTitles[id];
+                } else if (copy.title) {
+                    lockedTitles[id] = copy.title;
+                    titlesUpdated = true;
+                }
 
                 const rule = getRuleForCourse(copy.course);
                 const tLow = (copy.title || '').toLowerCase();
@@ -1881,6 +1996,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 }
                 return copy;
             });
+
+            if (titlesUpdated) {
+                localStorage.setItem('hw_locked_titles', JSON.stringify(lockedTitles));
+            }
 
             return merged.sort((a, b) => {
                 const dateCmp = (a.iso_date || '9999').localeCompare(b.iso_date || '9999');
@@ -2033,6 +2152,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             }, 2600);
         }
 
+        let lastSemesterReset = parseInt(localStorage.getItem('hw_last_semester_reset') || '0', 10);
+
         function resetAllCourseRules() {
             courseRules = {};
             courseColors = {};
@@ -2043,6 +2164,49 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             populateCourseRulesAndColors();
             renderAll();
             pushRemoteState();
+        }
+
+        function resetForNewSemester() {
+            const ok = confirm(
+                "Start a New Semester?\n\n" +
+                "This will clear all completed checkmarks, locked assignment titles, custom tasks, date edits, and course rules/colors across your devices.\n\n" +
+                "(Your visual theme, box opacity, background fade, and GitHub token will be kept!)"
+            );
+            if (!ok) return;
+
+            completedIds = {};
+            taskOverrides = {};
+            customTasks = [];
+            courseRules = {};
+            courseColors = {};
+            if (typeof lockedTitles !== 'undefined') lockedTitles = {};
+            globalDefaultTime = '22:00';
+            activeCourse = 'ALL';
+            lastSemesterReset = Date.now();
+
+            localStorage.removeItem('hw_completed_ids');
+            localStorage.removeItem('hw_task_overrides');
+            localStorage.removeItem('hw_custom_tasks');
+            localStorage.removeItem('hw_course_rules');
+            localStorage.removeItem('hw_course_colors');
+            localStorage.removeItem('hw_locked_titles');
+            localStorage.setItem('hw_global_default_time', '22:00');
+            localStorage.setItem('hw_last_semester_reset', String(lastSemesterReset));
+
+            populateCourseRulesAndColors();
+            renderAll();
+            pushRemoteState();
+
+            const btn = document.getElementById('semester-reset-btn');
+            if (btn) {
+                const orig = '🗑️ New Semester Reset';
+                btn.textContent = '✅ Semester Reset Complete!';
+                btn.classList.replace('bg-rose-600', 'bg-emerald-600');
+                setTimeout(() => {
+                    btn.textContent = orig;
+                    btn.classList.replace('bg-emerald-600', 'bg-rose-600');
+                }, 2800);
+            }
         }
 
         // --- TWO-WAY CLOUD SYNC ---
@@ -2059,6 +2223,21 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 if (res.ok) {
                     const remoteData = await res.json();
                     if (remoteData && (remoteData._version >= 2 || remoteData.completed || remoteData.overrides)) {
+                        // If a New Semester Reset happened on another device more recently, wipe local state first
+                        if (remoteData.lastSemesterReset && remoteData.lastSemesterReset > lastSemesterReset) {
+                            completedIds = {};
+                            taskOverrides = {};
+                            customTasks = [];
+                            courseRules = {};
+                            courseColors = {};
+                            if (typeof lockedTitles !== 'undefined') {
+                                lockedTitles = {};
+                                localStorage.removeItem('hw_locked_titles');
+                            }
+                            lastSemesterReset = remoteData.lastSemesterReset;
+                            localStorage.setItem('hw_last_semester_reset', String(lastSemesterReset));
+                        }
+
                         completedIds = { ...completedIds, ...(remoteData.completed || {}) };
                         taskOverrides = { ...taskOverrides, ...(remoteData.overrides || {}) };
                         if (remoteData.courseRules) courseRules = { ...courseRules, ...remoteData.courseRules };
@@ -2113,7 +2292,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 }
 
                 const payloadObj = {
-                    _version: 4,
+                    _version: 5,
+                    lastSemesterReset: lastSemesterReset,
                     completed: completedIds,
                     overrides: taskOverrides,
                     courseRules: courseRules,

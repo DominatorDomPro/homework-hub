@@ -32,7 +32,8 @@
     "Philosophy%20of%20God__finalpaperwork__2026-11-13": true,
     "Trinity%20and%20Christology__journalforclass36__2026-11-16": true,
     "Philosophy%20of%20God__weekfifteendaviessimplicitypdfreading__2026-11-16": true,
-    "Foundations%20of%20Ethics__readingjohndunsscotuswillandmoralitypp252282__2026-11-17": true
+    "Foundations%20of%20Ethics__readingjohndunsscotuswillandmoralitypp252282__2026-11-17": true,
+    "Christian%20Moral%20Principles__the115cccassessmentexam2__2026-11-14": true
   },
   "overrides": {
     "Philosophy%20of%20God__weektwelvewednesday1111conceptsofgoddiscussionquestion10__2026-11-11": {
@@ -77,17 +78,17 @@
     }
   },
   "courseRules": {
-    "Elementary Spanish II": {
-      "shiftDays": 0,
-      "timeMode": "force",
-      "customTime": "22:00",
-      "skipExamsEssays": false
-    },
     "Christian Moral Principles": {
       "shiftDays": 0,
       "timeMode": "force",
       "customTime": "10:00",
       "skipExamsEssays": true
+    },
+    "Elementary Spanish II": {
+      "shiftDays": 0,
+      "timeMode": "force",
+      "customTime": "22:00",
+      "skipExamsEssays": false
     },
     "Foundations of Ethics": {
       "shiftDays": -1,

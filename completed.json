@@ -39,8 +39,7 @@
     "Elementary%20Spanish%20II__leccin8__2026-11-17": true,
     "Philosophy%20of%20God__weekfifteenmullinsclassicaltheismpdfreading__2026-11-18": true,
     "PHIL%20212%20Ethics__interpretivephilosophicalessay2due__2026-11-19": true,
-    "Christian%20Moral%20Principles__classreadingrespectmarriageiii6thand9thcommandments__2026-11-17": true,
-    "Foundations%20of%20Ethics__interpretivephilosophicalessay2__2026-11-19": true
+    "Foundations%20of%20Ethics__readingjohndunsscotuswillandmoralitypp283314__2026-11-19": true
   },
   "overrides": {
     "Philosophy%20of%20God__weektwelvewednesday1111conceptsofgoddiscussionquestion10__2026-11-11": {
@@ -85,17 +84,17 @@
     }
   },
   "courseRules": {
-    "Elementary Spanish II": {
-      "shiftDays": 0,
-      "timeMode": "force",
-      "customTime": "22:00",
-      "skipExamsEssays": false
-    },
     "Christian Moral Principles": {
       "shiftDays": 0,
       "timeMode": "force",
       "customTime": "10:00",
       "skipExamsEssays": true
+    },
+    "Elementary Spanish II": {
+      "shiftDays": 0,
+      "timeMode": "force",
+      "customTime": "22:00",
+      "skipExamsEssays": false
     },
     "Foundations of Ethics": {
       "shiftDays": -1,
